@@ -28,7 +28,12 @@ class Contacto:
     def set_email (self, nuevo_email):
             self.email = nuevo_email
 
-    
+    '''Se crea un nuevo metodo para mostrar la informacion del contacto '''
+
+    def mostrar_contacto(self):
+           print(f"Nombre: {self.nombre}")
+           print(f"Telefono: {self.telefono}")
+           print(f"Email: {self.email}")
 
 ''' Se crea la clase Agenda'''
 
