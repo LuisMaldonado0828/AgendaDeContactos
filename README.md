@@ -1,9 +1,5 @@
 # AgendaDeContactos
 
-<p align="center">
-  <img src="Dark Side Of Devs.jpg" alt="Dark Side Of Devs" width="300">
-</p>
-
 ---
 
 ##  Descripción del Proyecto
