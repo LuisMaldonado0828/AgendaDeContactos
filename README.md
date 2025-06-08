@@ -1,4 +1,8 @@
-#  AgendaDeContactos
+# AgendaDeContactos
+
+<p align="center">
+  <img src="Dark Side Of Devs.jpg" alt="Dark Side Of Devs" width="300">
+</p>
 
 ---
 
@@ -42,8 +46,8 @@ Con esta agenda digital puedes **agregar**, **buscar**, **actualizar** y **elimi
 - **Atributo**: `contactos` (lista de objetos `Contacto`)
 - **Métodos**:
   - `agregar_contacto()`
-  - `buscar_contacto()`
-  - `actualizar_contacto()`
+  - `buscar_contacto()`  
+  - `actualizar_contacto()`  
   - `eliminar_contacto()`
 
 ---
@@ -51,7 +55,7 @@ Con esta agenda digital puedes **agregar**, **buscar**, **actualizar** y **elimi
 ##  ¿Cómo ejecutar el programa?
 
 1. Asegúrate de tener **Python 3.10 o superior** instalado.
-2. Clona este repositorio o descarga los archivos `.py`.
+
 
 
 
