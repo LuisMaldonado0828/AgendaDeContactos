@@ -19,7 +19,7 @@ Con esta agenda digital puedes **agregar**, **buscar**, **actualizar** y **elimi
 
 ---
 
-## 📋 Funcionalidades Principales
+##  Funcionalidades Principales
 
 -  Agregar contacto (nombre, teléfono, correo electrónico).
 -  Buscar contacto por nombre.
