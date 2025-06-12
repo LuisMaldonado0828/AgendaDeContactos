@@ -1,124 +1,81 @@
-''' Se crea la clase Contacto'''
+from logica.conexion import conectar
 
 class Contacto:
-
-    '''Creo el constructor con atributos:  nombre , telefono y email.'''
-
     def __init__(self, nombre, telefono, email):
         self.nombre = nombre
         self.telefono = telefono
         self.email = email
 
-    '''Se crea el  método Getter: Este sirve para acceder a los valores de los atributos.'''
-
     def get_nombre(self):
-            return self.nombre
-    def get_telefono (self):
-            return self.telefono
-    def get_email (self):
-            return self.email
-    
-    '''Se crea el método Setter : Este modifica los valores de los atributos, utlizando  parametros como "nuevo_nombre", "nuevo_telefono" y "nuevo_email" permitiendo
-    que pueda reemplazar el contenido original por estos nuevos valores que se pasaran como argumentos. '''
+        return self.nombre
 
-    def set_nombre(self, nuevo_nombre):  
-            self.nombre = nuevo_nombre    
-    def set_telefono (self, nuevo_telefono):
-            self.telefono = nuevo_telefono   
-    def set_email (self, nuevo_email):
-            self.email = nuevo_email
+    def get_telefono(self):
+        return self.telefono
 
-    '''Se crea un nuevo metodo para mostrar la informacion del contacto '''
+    def get_email(self):
+        return self.email
 
-    def mostrar_contacto(self):
-           print(f"Nombre: {self.nombre}")
-           print(f"Telefono: {self.telefono}")
-           print(f"Email: {self.email}")
+class Agenda:
+    def __init__(self):
+        self.db = conectar()
+        self.cursor = self.db.cursor()
 
-''' Se crea la clase Agenda'''
+    def agregar_contacto(self, contacto):
+        try:
+            self.cursor.execute("SELECT * FROM contactos WHERE email = %s", (contacto.get_email(),))
+            if self.cursor.fetchone():
+                print("⚠️ Ya existe un contacto con este correo.")
+                return
+            self.cursor.execute(
+                "INSERT INTO contactos (name, telefono, email) VALUES (%s, %s, %s)",
+                (contacto.get_nombre(), contacto.get_telefono(), contacto.get_email())
+            )
+            self.db.commit()
+            print("✅ Contacto agregado correctamente.")
+        except Exception as e:
+            print("❌ Error al agregar contacto:", e)
 
-class Agenda: 
-       
-       ''' Creo un Constructor '''
+    def buscar_contacto(self, nombre):
+        try:
+            self.cursor.execute("SELECT * FROM contactos WHERE name = %s", (nombre,))
+            fila = self.cursor.fetchone()
+            if fila:
+                return Contacto(fila[1], fila[2], fila[3])
+            return None
+        except Exception as e:
+            print("❌ Error al buscar contacto:", e)
+            return None
 
-       def __init__(self):
-              
-              ''' Creo una lista vacia para guardar los contactos '''
+    def actualizar_contacto(self, nombre, nuevo_telefono, nuevo_email):
+        try:
+            self.cursor.execute(
+                "UPDATE contactos SET telefono = %s, email = %s WHERE name = %s",
+                (nuevo_telefono, nuevo_email, nombre)
+            )
+            self.db.commit()
+            print("✅ Contacto actualizado.")
+        except Exception as e:
+            print("❌ Error al actualizar:", e)
 
-              self.contactos = []
+    def eliminar_contacto(self, nombre):
+        try:
+            self.cursor.execute("DELETE FROM contactos WHERE name = %s", (nombre,))
+            self.db.commit()
+            print("🗑️ Contacto eliminado correctamente.")
+        except Exception as e:
+            print("❌ Error al eliminar:", e)
 
-       def agregar_contacto(self, contacto):
-              
-              '''Recorre cada uno de los contactos existentes en la agenda para saber si hay uno igual y si lo hay no dejara seguir '''
-
-              for i in self.contactos: 
-                     if i.get_gmail() == Contacto.get_email():
-                            print("Ya existe un contacto con este correo")
-                            return
-                     self.contactos.append(Contacto)
-                     print("Contacto agregado conrrectamente")
-
-       '''Se crea un metodo para buscar un contacto por el nombre '''
-       
-       def buscar_contacto(self, nombre):
-              for i in self.contactos: 
-                      
-                      '''Compara el nombre ignorando las mayusculas'''
-
-                      if i.get_nombre().lower() == nombre.lower():
-                              
-                              ''' Si lo encuetra este lo devielve: '''
-
-                              return i 
-                      
-              ''' Si no lo encuentra devuelve None'''
-              
-              return None
-       
-       ''' Se crea un metodo para actualizar el nombre del contacto: '''
-        
-       def actualizar_contacto(self, nombre):
-              
-              ''' Aqui se busca el contacto con ese nombre'''
-
-              Contacto = self.buscar_contacto(nombre)
-
-              ''' Si lo encuentra se pide el nuevo telefono y email por consola'''
-
-              if Contacto:
-                     nuevo_telefono = input("Nuevo telefono: ")
-                     nuevo_email = input("Nuevo email: ")
-
-                     '''Aqui se guardan los cambios: '''
-
-                     Contacto.set_telefono(nuevo_telefono)
-                     Contacto.set_email(nuevo_email)
-                     print("Contacto actualizado.")
-              else: 
-                print("El contacto no se encontro.") 
-
-       '''Se crea un metodo para eliminar un contacto por el nombre'''
-
-       def eliminar_contacto(self, nombre):
-             
-             '''Recorre la lista de contactos ignorando mayusculas y si lo encuntra se elimina si no se muestra un mensaje de contacto no encontrado'''
-
-             for i in self.contactos:
-                   if i.get_nombre().lower() == nombre.lower():
-                         self.contactos.remove(i)
-                         print("Se elimino correctamente el contacto")
-                         return
-             print("Contacto no encontrado")
-
-       '''Se crea un metodo para poder ver todos los contactos de la agenda '''
-       
-       def mostrar_todos(self):
-             
-             ''' Aqui se revisa si la lista esta vacia y si lo esta mostrara que es la agenda esta vacia '''
-
-             if not self.contactos:
-                   print("Agenda vacia")
-             else: 
-                   for i in self.contactos:
-                         print("--------")
-                         i.mostrar_contacto()      
+    def mostrar_todos(self):
+        try:
+            self.cursor.execute("SELECT * FROM contactos")
+            resultados = self.cursor.fetchall()
+            if not resultados:
+                print("📭 Agenda vacía.")
+            else:
+                for fila in resultados:
+                    print("------")
+                    print(f"Nombre: {fila[1]}")
+                    print(f"Teléfono: {fila[2]}")
+                    print(f"Email: {fila[3]}")
+        except Exception as e:
+            print("❌ Error al mostrar todos los contactos:", e)
