@@ -1,6 +1,5 @@
-# Archivo: interfaz.py
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 from PIL import Image, ImageTk
 from logica.clases import Contacto, Agenda
 
@@ -8,88 +7,183 @@ class Interfaz:
     def __init__(self, root):
         self.agenda = Agenda()
         self.root = root
-        self.root.title("Agenda de Contactos")
-        self.root.geometry("800x600")
-        self.root.resizable(False, False)
+        self.root.title("Contactos Dark side of devs")
+        self.root.geometry("1000x600")
+        self.root.configure(bg="#f5f6fa")
 
-        # Fondo
-        imagen_fondo = Image.open("resourses/fondo-de-pantalla-el-mundo-fondo-negro.jpg")
-        fondo_tk = ImageTk.PhotoImage(imagen_fondo)
-        fondo_label = tk.Label(self.root, image=fondo_tk)
-        fondo_label.image = fondo_tk
-        fondo_label.place(x=0, y=0, relwidth=1, relheight=1)
+        self.crear_encabezado()
+        self.crear_area_contactos()
 
-        # Frame contenedor
-        frame = tk.Frame(self.root, bg="white", bd=5)
-        frame.place(relx=0.5, rely=0.5, anchor="center")
+    def crear_encabezado(self):
+        header = tk.Frame(self.root, bg="white", height=60)
+        header.pack(fill=tk.X)
 
-        # Widgets
-        self.nombre_label = tk.Label(frame, text="Nombre", bg="white", font=("Arial", 12))
-        self.nombre_label.grid(row=0, column=0, padx=10, pady=5)
-        self.nombre_entry = tk.Entry(frame, width=30)
-        self.nombre_entry.grid(row=0, column=1, padx=10, pady=5)
+        logo = tk.Label(header, text="[Logo]", font=("Arial", 20), bg="white")
+        logo.pack(side=tk.LEFT, padx=10)
 
-        self.telefono_label = tk.Label(frame, text="Teléfono", bg="white", font=("Arial", 12))
-        self.telefono_label.grid(row=1, column=0, padx=10, pady=5)
-        self.telefono_entry = tk.Entry(frame, width=30)
-        self.telefono_entry.grid(row=1, column=1, padx=10, pady=5)
+        titulo = tk.Label(header, text="Dark Side Of Devs", font=("Arial", 16, "bold"), bg="white")
+        titulo.pack(side=tk.LEFT)
 
-        self.email_label = tk.Label(frame, text="Email", bg="white", font=("Arial", 12))
-        self.email_label.grid(row=2, column=0, padx=10, pady=5)
-        self.email_entry = tk.Entry(frame, width=30)
-        self.email_entry.grid(row=2, column=1, padx=10, pady=5)
+        self.contactos_btn = tk.Button(header, text="Contactos", bg="#3b82f6", fg="white", command=self.mostrar_contactos)
+        self.contactos_btn.pack(side=tk.RIGHT, padx=10, pady=10)
 
-        # Botones
-        self.agregar_btn = tk.Button(frame, text="Agregar", command=self.agregar_contacto, width=20, bg="#4CAF50", fg="white")
-        self.agregar_btn.grid(row=3, column=0, pady=10)
+        self.agregar_btn = tk.Button(header, text="Agregar", bg="white", command=self.ventana_agregar)
+        self.agregar_btn.pack(side=tk.RIGHT, padx=10)
 
-        self.buscar_btn = tk.Button(frame, text="Buscar", command=self.buscar_contacto, width=20, bg="#2196F3", fg="white")
-        self.buscar_btn.grid(row=3, column=1, pady=10)
+        self.buscar_btn = tk.Button(header, text="Buscar", bg="white", command=self.ventana_buscar)
+        self.buscar_btn.pack(side=tk.RIGHT, padx=10)
 
-        self.actualizar_btn = tk.Button(frame, text="Actualizar", command=self.actualizar_contacto, width=20, bg="#FFC107", fg="black")
-        self.actualizar_btn.grid(row=4, column=0, pady=10)
+        self.acerca_btn = tk.Button(header, text="Acerca de", bg="white", command=self.ventana_acerca)
+        self.acerca_btn.pack(side=tk.RIGHT, padx=10)
 
-        self.eliminar_btn = tk.Button(frame, text="Eliminar", command=self.eliminar_contacto, width=20, bg="#F44336", fg="white")
-        self.eliminar_btn.grid(row=4, column=1, pady=10)
+    def crear_area_contactos(self):
+        self.area_contactos = tk.Frame(self.root, bg="#f5f6fa")
+        self.area_contactos.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        self.mostrar_contactos()
 
-        self.mostrar_btn = tk.Button(frame, text="Mostrar Todos", command=self.mostrar_todos, width=42, bg="#9C27B0", fg="white")
-        self.mostrar_btn.grid(row=5, column=0, columnspan=2, pady=10)
+    def mostrar_contactos(self):
+        for widget in self.area_contactos.winfo_children():
+            widget.destroy()
 
-    def agregar_contacto(self):
-        nombre = self.nombre_entry.get()
-        telefono = self.telefono_entry.get()
-        email = self.email_entry.get()
-        if nombre and telefono and email:
-            contacto = Contacto(nombre, telefono, email)
-            self.agenda.agregar_contacto(contacto)
-            messagebox.showinfo("Éxito", "Contacto agregado")
-        else:
-            messagebox.showwarning("Campos Vacíos", "Por favor complete todos los campos")
+        self.area_contactos.grid_columnconfigure((0, 1, 2), weight=1)
+        contactos = self.agenda.cursor
+        contactos.execute("SELECT * FROM contactos")
+        resultados = contactos.fetchall()
 
-    def buscar_contacto(self):
-        nombre = self.nombre_entry.get()
+        if not resultados:
+            tk.Label(self.area_contactos, text="No hay contactos registrados.", bg="#f5f6fa", font=("Arial", 14)).pack()
+            return
+
+        for idx, fila in enumerate(resultados):
+            card = tk.Frame(self.area_contactos, bg="white", bd=1, relief="raised")
+            card.grid(row=idx//3, column=idx%3, padx=10, pady=10, sticky="nsew")
+
+            inicial = fila[1][0].upper()
+            icono = tk.Label(card, text=inicial, bg="#8e44ad", fg="white", width=2, font=("Arial", 14, "bold"))
+            icono.grid(row=0, column=0, padx=10, pady=10, sticky="w")
+
+            nombre = tk.Label(card, text=fila[1], bg="white", font=("Arial", 12, "bold"))
+            nombre.grid(row=1, column=0, columnspan=2, sticky="w", padx=10)
+
+            telefono = tk.Label(card, text=f"Teléfono: {fila[2]}", bg="white", font=("Arial", 10))
+            telefono.grid(row=2, column=0, columnspan=2, sticky="w", padx=10)
+
+            email = tk.Label(card, text=f"Email: {fila[3]}", bg="white", font=("Arial", 10))
+            email.grid(row=3, column=0, columnspan=2, sticky="w", padx=10, pady=(0, 10))
+
+            editar_btn = tk.Button(card, text="Editar", bg="white", command=lambda n=fila[1]: self.ventana_editar(n))
+            editar_btn.grid(row=0, column=1, sticky="e", padx=5)
+
+            eliminar_btn = tk.Button(card, text="Eliminar", bg="white", command=lambda n=fila[1]: self.eliminar_contacto(n))
+            eliminar_btn.grid(row=0, column=2, sticky="e", padx=5)
+
+    def ventana_buscar(self):
+        ventana = tk.Toplevel(self.root)
+        ventana.title("Buscar Contacto")
+        ventana.geometry("400x300")
+        ventana.configure(bg="white")
+
+        tk.Label(ventana, text="Nombre del contacto:", bg="white", font=("Arial", 12)).pack(pady=10)
+        nombre_entry = tk.Entry(ventana, font=("Arial", 12))
+        nombre_entry.pack(pady=5)
+
+        resultado_box = tk.Text(ventana, height=10, width=45, font=("Arial", 10))
+        resultado_box.pack(pady=10)
+
+        def buscar():
+            resultado_box.delete("1.0", tk.END)
+            nombre = nombre_entry.get().strip()
+            if not nombre:
+                messagebox.showwarning("Campo vacío", "Por favor, ingresa un nombre para buscar.")
+                return
+            try:
+                consulta = "SELECT * FROM contactos WHERE LOWER(name) LIKE %s"
+                self.agenda.cursor.execute(consulta, (f"%{nombre.lower()}%",))
+                resultados = self.agenda.cursor.fetchall()
+                if resultados:
+                    for fila in resultados:
+                        resultado_box.insert(tk.END, f"Nombre: {fila[1]}\nTeléfono: {fila[2]}\nEmail: {fila[3]}\n\n")
+                else:
+                    resultado_box.insert(tk.END, "No se encontraron contactos.")
+            except Exception as e:
+                messagebox.showerror("Error", f"Ocurrió un error al buscar: {e}")
+
+        tk.Button(ventana, text="Buscar", command=buscar, bg="#3b82f6", fg="white", font=("Arial", 11)).pack(pady=10)
+
+    def ventana_agregar(self):
+        self.ventana_formulario("Agregar Contacto", self.agregar_contacto)
+
+    def ventana_acerca(self):
+        messagebox.showinfo("Acerca de", "ContactHub Pro\nDesarrollado con Tkinter + MySQL")
+
+    def ventana_editar(self, nombre):
         contacto = self.agenda.buscar_contacto(nombre)
         if contacto:
-            self.telefono_entry.delete(0, tk.END)
-            self.telefono_entry.insert(0, contacto.get_telefono())
-            self.email_entry.delete(0, tk.END)
-            self.email_entry.insert(0, contacto.get_email())
-        else:
-            messagebox.showinfo("Buscar", "Contacto no encontrado.")
+            self.ventana_formulario("Actualizar Contacto", lambda: self.actualizar_contacto(contacto.get_nombre()), contacto)
 
-    def actualizar_contacto(self):
-        nombre = self.nombre_entry.get()
-        telefono = self.telefono_entry.get()
-        email = self.email_entry.get()
-        self.agenda.actualizar_contacto(nombre, telefono, email)
-        messagebox.showinfo("Actualizado", "Contacto actualizado correctamente")
+    def ventana_formulario(self, titulo, comando, contacto=None):
+        ventana = tk.Toplevel(self.root)
+        ventana.title(titulo)
+        ventana.geometry("400x300")
 
-    def eliminar_contacto(self):
-        nombre = self.nombre_entry.get()
-        self.agenda.eliminar_contacto(nombre)
-        messagebox.showinfo("Eliminado", "Contacto eliminado")
+        tk.Label(ventana, text="Nombre").pack(pady=5)
+        nombre_entry = tk.Entry(ventana)
+        nombre_entry.pack(pady=5)
+        if contacto:
+            nombre_entry.insert(0, contacto.get_nombre())
+            nombre_entry.config(state="disabled")
 
-    def mostrar_todos(self):
-        self.agenda.mostrar_todos()
+        tk.Label(ventana, text="Teléfono").pack(pady=5)
+        telefono_entry = tk.Entry(ventana)
+        telefono_entry.pack(pady=5)
+        if contacto:
+            telefono_entry.insert(0, contacto.get_telefono())
 
-# Este archivo no se ejecuta directamente, se importa desde main.py
+        tk.Label(ventana, text="Email").pack(pady=5)
+        email_entry = tk.Entry(ventana)
+        email_entry.pack(pady=5)
+        if contacto:
+            email_entry.insert(0, contacto.get_email())
+
+        def ejecutar():
+            if contacto:
+                self.agenda.actualizar_contacto(contacto.get_nombre(), telefono_entry.get(), email_entry.get())
+                messagebox.showinfo("Actualizado", "Contacto actualizado correctamente")
+                ventana.destroy()
+            else:
+                nuevo = Contacto(nombre_entry.get(), telefono_entry.get(), email_entry.get())
+                exito = self.agregar_contacto(nuevo)
+                if exito:
+                    messagebox.showinfo("Agregado", "Contacto agregado correctamente")
+                else:
+                    messagebox.showwarning("Error", "No se pudo agregar el contacto")
+                ventana.destroy()
+            self.mostrar_contactos()
+
+        tk.Button(ventana, text="Guardar", bg="#3b82f6", fg="white", command=ejecutar).pack(pady=20)
+
+    def agregar_contacto(self, contacto):
+        try:
+            exito = self.agenda.agregar_contacto(contacto)
+            return exito
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo agregar el contacto: {e}")
+            return False
+
+    def buscar_contacto(self):
+        pass
+
+    def actualizar_contacto(self, nombre):
+        pass
+
+    def eliminar_contacto(self, nombre):
+        confirmacion = messagebox.askyesno("Confirmar", "¿Seguro que deseas eliminar este contacto?")
+        if confirmacion:
+            self.agenda.eliminar_contacto(nombre)
+            self.mostrar_contactos()
+            messagebox.showinfo("Eliminado", "Contacto eliminado correctamente")
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = Interfaz(root)
+    root.mainloop()
