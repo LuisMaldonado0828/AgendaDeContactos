@@ -179,9 +179,15 @@ class Interfaz:
                 messagebox.showwarning("Correo inválido", "El correo electrónico no es válido.")
                 return
 
-            if not telefono.isdigit() or len(telefono) < 7:
-                messagebox.showwarning("Teléfono inválido", "El número de teléfono debe tener al menos 7 dígitos.")
+            if not telefono.isdigit() or len(telefono) < 10:
+                messagebox.showwarning("Teléfono inválido", "El número de teléfono debe tener al menos 10 dígitos.")
                 return
+
+            if not contacto:
+                self.agenda.cursor.execute("SELECT * FROM contactos WHERE LOWER(name) = %s", (nombre.lower(),))
+                if self.agenda.cursor.fetchone():
+                    messagebox.showwarning("Duplicado", "Ya existe un contacto con ese nombre completo. Intenta agregar un apellido diferente.")
+                    return
 
             if contacto:
                 self.agenda.actualizar_contacto(nombre, telefono, email)
