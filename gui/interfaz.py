@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from PIL import Image, ImageTk
 from logica.clases import Contacto, Agenda
+import re
 
 class Interfaz:
     def __init__(self, root):
@@ -18,22 +19,22 @@ class Interfaz:
         header = tk.Frame(self.root, bg="white", height=60)
         header.pack(fill=tk.X)
 
-        logo = tk.Label(header, text="[Logo]", font=("Arial", 20), bg="white")
+        logo = tk.Label(header, text="📇", font=("Arial", 20), bg="white")
         logo.pack(side=tk.LEFT, padx=10)
 
-        titulo = tk.Label(header, text="Dark Side Of Devs", font=("Arial", 16, "bold"), bg="white")
+        titulo = tk.Label(header, text="Dark Side Of Devs ", font=("Arial", 16, "bold"), bg="white")
         titulo.pack(side=tk.LEFT)
 
-        self.contactos_btn = tk.Button(header, text="Contactos", bg="#3b82f6", fg="white", command=self.mostrar_contactos)
+        self.contactos_btn = tk.Button(header, text="👥 Contactos", bg="#3b82f6", fg="white", command=self.mostrar_contactos)
         self.contactos_btn.pack(side=tk.RIGHT, padx=10, pady=10)
 
-        self.agregar_btn = tk.Button(header, text="Agregar", bg="white", command=self.ventana_agregar)
+        self.agregar_btn = tk.Button(header, text="＋ Agregar", bg="white", command=self.ventana_agregar)
         self.agregar_btn.pack(side=tk.RIGHT, padx=10)
 
-        self.buscar_btn = tk.Button(header, text="Buscar", bg="white", command=self.ventana_buscar)
+        self.buscar_btn = tk.Button(header, text="🔍 Buscar", bg="white", command=self.ventana_buscar)
         self.buscar_btn.pack(side=tk.RIGHT, padx=10)
 
-        self.acerca_btn = tk.Button(header, text="Acerca de", bg="white", command=self.ventana_acerca)
+        self.acerca_btn = tk.Button(header, text="ℹ️ Acerca de", bg="white", command=self.ventana_acerca)
         self.acerca_btn.pack(side=tk.RIGHT, padx=10)
 
     def crear_area_contactos(self):
@@ -58,60 +59,47 @@ class Interfaz:
             card = tk.Frame(self.area_contactos, bg="white", bd=1, relief="raised")
             card.grid(row=idx//3, column=idx%3, padx=10, pady=10, sticky="nsew")
 
-            inicial = fila[1][0].upper()
+            nombre_contacto = fila[1] if fila[1] else "?"
+            inicial = nombre_contacto[0].upper()
             icono = tk.Label(card, text=inicial, bg="#8e44ad", fg="white", width=2, font=("Arial", 14, "bold"))
             icono.grid(row=0, column=0, padx=10, pady=10, sticky="w")
 
-            nombre = tk.Label(card, text=fila[1], bg="white", font=("Arial", 12, "bold"))
+            nombre = tk.Label(card, text=nombre_contacto, bg="white", font=("Arial", 12, "bold"))
             nombre.grid(row=1, column=0, columnspan=2, sticky="w", padx=10)
 
-            telefono = tk.Label(card, text=f"Teléfono: {fila[2]}", bg="white", font=("Arial", 10))
+            telefono = tk.Label(card, text=f"📞 {fila[2]}", bg="white", font=("Arial", 10))
             telefono.grid(row=2, column=0, columnspan=2, sticky="w", padx=10)
 
-            email = tk.Label(card, text=f"Email: {fila[3]}", bg="white", font=("Arial", 10))
+            email = tk.Label(card, text=f"✉️ {fila[3]}", bg="white", font=("Arial", 10))
             email.grid(row=3, column=0, columnspan=2, sticky="w", padx=10, pady=(0, 10))
 
-            editar_btn = tk.Button(card, text="Editar", bg="white", command=lambda n=fila[1]: self.ventana_editar(n))
+            editar_btn = tk.Button(card, text="✏️", bg="white", command=lambda n=fila[1]: self.ventana_editar(n))
             editar_btn.grid(row=0, column=1, sticky="e", padx=5)
 
-            eliminar_btn = tk.Button(card, text="Eliminar", bg="white", command=lambda n=fila[1]: self.eliminar_contacto(n))
+            eliminar_btn = tk.Button(card, text="🗑️", bg="white", command=lambda n=fila[1]: self.eliminar_contacto(n))
             eliminar_btn.grid(row=0, column=2, sticky="e", padx=5)
+
+    def ventana_agregar(self):
+        self.ventana_formulario("Agregar Contacto", self.agregar_contacto)
 
     def ventana_buscar(self):
         ventana = tk.Toplevel(self.root)
         ventana.title("Buscar Contacto")
-        ventana.geometry("400x300")
-        ventana.configure(bg="white")
+        ventana.geometry("300x200")
 
-        tk.Label(ventana, text="Nombre del contacto:", bg="white", font=("Arial", 12)).pack(pady=10)
-        nombre_entry = tk.Entry(ventana, font=("Arial", 12))
+        tk.Label(ventana, text="Nombre del contacto").pack(pady=5)
+        nombre_entry = tk.Entry(ventana)
         nombre_entry.pack(pady=5)
 
-        resultado_box = tk.Text(ventana, height=10, width=45, font=("Arial", 10))
-        resultado_box.pack(pady=10)
-
         def buscar():
-            resultado_box.delete("1.0", tk.END)
-            nombre = nombre_entry.get().strip()
-            if not nombre:
-                messagebox.showwarning("Campo vacío", "Por favor, ingresa un nombre para buscar.")
-                return
-            try:
-                consulta = "SELECT * FROM contactos WHERE LOWER(name) LIKE %s"
-                self.agenda.cursor.execute(consulta, (f"%{nombre.lower()}%",))
-                resultados = self.agenda.cursor.fetchall()
-                if resultados:
-                    for fila in resultados:
-                        resultado_box.insert(tk.END, f"Nombre: {fila[1]}\nTeléfono: {fila[2]}\nEmail: {fila[3]}\n\n")
-                else:
-                    resultado_box.insert(tk.END, "No se encontraron contactos.")
-            except Exception as e:
-                messagebox.showerror("Error", f"Ocurrió un error al buscar: {e}")
+            nombre = nombre_entry.get()
+            contacto = self.agenda.buscar_contacto(nombre)
+            if contacto:
+                messagebox.showinfo("Resultado", f"📇 Nombre: {contacto.get_nombre()}\n📞 Teléfono: {contacto.get_telefono()}\n✉️ Email: {contacto.get_email()}")
+            else:
+                messagebox.showinfo("Resultado", "Contacto no encontrado")
 
-        tk.Button(ventana, text="Buscar", command=buscar, bg="#3b82f6", fg="white", font=("Arial", 11)).pack(pady=10)
-
-    def ventana_agregar(self):
-        self.ventana_formulario("Agregar Contacto", self.agregar_contacto)
+        tk.Button(ventana, text="Buscar", bg="#3b82f6", fg="white", command=buscar).pack(pady=10)
 
     def ventana_acerca(self):
         messagebox.showinfo("Acerca de", "ContactHub Pro\nDesarrollado con Tkinter + MySQL")
@@ -146,13 +134,29 @@ class Interfaz:
             email_entry.insert(0, contacto.get_email())
 
         def ejecutar():
+            nombre_val = nombre_entry.get().strip()
+            telefono_val = telefono_entry.get().strip()
+            email_val = email_entry.get().strip()
+
+            if not nombre_val or not telefono_val or not email_val:
+                messagebox.showwarning("Campos vacíos", "Por favor completa todos los campos.")
+                return
+
+            if not re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", email_val):
+                messagebox.showwarning("Email inválido", "Por favor ingresa un correo electrónico válido.")
+                return
+
+            if not re.match(r"^\d{7,15}$", telefono_val):
+                messagebox.showwarning("Teléfono inválido", "Ingresa un número de teléfono válido (7 a 15 dígitos).")
+                return
+
             if contacto:
-                self.agenda.actualizar_contacto(contacto.get_nombre(), telefono_entry.get(), email_entry.get())
+                self.agenda.actualizar_contacto(contacto.get_nombre(), telefono_val, email_val)
                 messagebox.showinfo("Actualizado", "Contacto actualizado correctamente")
                 ventana.destroy()
             else:
-                nuevo = Contacto(nombre_entry.get(), telefono_entry.get(), email_entry.get())
-                exito = self.agregar_contacto(nuevo)
+                nuevo = Contacto(nombre_val, telefono_val, email_val)
+                exito = self.agenda.agregar_contacto(nuevo)
                 if exito:
                     messagebox.showinfo("Agregado", "Contacto agregado correctamente")
                 else:
@@ -162,19 +166,14 @@ class Interfaz:
 
         tk.Button(ventana, text="Guardar", bg="#3b82f6", fg="white", command=ejecutar).pack(pady=20)
 
-    def agregar_contacto(self, contacto):
-        try:
-            exito = self.agenda.agregar_contacto(contacto)
-            return exito
-        except Exception as e:
-            messagebox.showerror("Error", f"No se pudo agregar el contacto: {e}")
-            return False
+    def agregar_contacto(self):
+        messagebox.showinfo("Info", "Funcionalidad de agregar contacto aún no implementada.")
 
     def buscar_contacto(self):
-        pass
+        messagebox.showinfo("Info", "Funcionalidad de buscar contacto aún no implementada.")
 
     def actualizar_contacto(self, nombre):
-        pass
+        messagebox.showinfo("Info", "Funcionalidad de actualizar contacto aún no implementada.")
 
     def eliminar_contacto(self, nombre):
         confirmacion = messagebox.askyesno("Confirmar", "¿Seguro que deseas eliminar este contacto?")
