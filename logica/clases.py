@@ -79,7 +79,7 @@ class Agenda:
             self.cursor.execute("SELECT * FROM contactos")
             resultados = self.cursor.fetchall()
             if not resultados:
-                print("📭 Agenda vacía.")
+                print(" Agenda vacía.")
             else:
                 for fila in resultados:
                     print("------")

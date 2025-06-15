@@ -59,12 +59,11 @@ class Interfaz:
             card = tk.Frame(self.area_contactos, bg="white", bd=1, relief="raised")
             card.grid(row=idx//3, column=idx%3, padx=10, pady=10, sticky="nsew")
 
-            nombre_contacto = fila[1] if fila[1] else "?"
-            inicial = nombre_contacto[0].upper()
+            inicial = fila[1][0].upper() if fila[1] else "?"
             icono = tk.Label(card, text=inicial, bg="#8e44ad", fg="white", width=2, font=("Arial", 14, "bold"))
             icono.grid(row=0, column=0, padx=10, pady=10, sticky="w")
 
-            nombre = tk.Label(card, text=nombre_contacto, bg="white", font=("Arial", 12, "bold"))
+            nombre = tk.Label(card, text=fila[1], bg="white", font=("Arial", 12, "bold"))
             nombre.grid(row=1, column=0, columnspan=2, sticky="w", padx=10)
 
             telefono = tk.Label(card, text=f"📞 {fila[2]}", bg="white", font=("Arial", 10))
@@ -93,11 +92,45 @@ class Interfaz:
 
         def buscar():
             nombre = nombre_entry.get()
-            contacto = self.agenda.buscar_contacto(nombre)
-            if contacto:
-                messagebox.showinfo("Resultado", f"📇 Nombre: {contacto.get_nombre()}\n📞 Teléfono: {contacto.get_telefono()}\n✉️ Email: {contacto.get_email()}")
-            else:
-                messagebox.showinfo("Resultado", "Contacto no encontrado")
+            if not nombre.strip():
+                messagebox.showwarning("Advertencia", "Por favor ingrese un nombre para buscar")
+                return
+
+            for widget in self.area_contactos.winfo_children():
+                widget.destroy()
+
+            self.area_contactos.grid_columnconfigure((0, 1, 2), weight=1)
+            self.agenda.cursor.execute("SELECT * FROM contactos WHERE LOWER(name) LIKE %s", (f"%{nombre.lower()}%",))
+            resultados = self.agenda.cursor.fetchall()
+
+            if not resultados:
+                tk.Label(self.area_contactos, text="No se encontraron contactos con ese nombre.", bg="#f5f6fa", font=("Arial", 14)).pack()
+                return
+
+            for idx, fila in enumerate(resultados):
+                card = tk.Frame(self.area_contactos, bg="white", bd=1, relief="raised")
+                card.grid(row=idx//3, column=idx%3, padx=10, pady=10, sticky="nsew")
+
+                inicial = fila[1][0].upper() if fila[1] else "?"
+                icono = tk.Label(card, text=inicial, bg="#8e44ad", fg="white", width=2, font=("Arial", 14, "bold"))
+                icono.grid(row=0, column=0, padx=10, pady=10, sticky="w")
+
+                nombre = tk.Label(card, text=fila[1], bg="white", font=("Arial", 12, "bold"))
+                nombre.grid(row=1, column=0, columnspan=2, sticky="w", padx=10)
+
+                telefono = tk.Label(card, text=f"📞 {fila[2]}", bg="white", font=("Arial", 10))
+                telefono.grid(row=2, column=0, columnspan=2, sticky="w", padx=10)
+
+                email = tk.Label(card, text=f"✉️ {fila[3]}", bg="white", font=("Arial", 10))
+                email.grid(row=3, column=0, columnspan=2, sticky="w", padx=10, pady=(0, 10))
+
+                editar_btn = tk.Button(card, text="✏️", bg="white", command=lambda n=fila[1]: self.ventana_editar(n))
+                editar_btn.grid(row=0, column=1, sticky="e", padx=5)
+
+                eliminar_btn = tk.Button(card, text="🗑️", bg="white", command=lambda n=fila[1]: self.eliminar_contacto(n))
+                eliminar_btn.grid(row=0, column=2, sticky="e", padx=5)
+
+            ventana.destroy()
 
         tk.Button(ventana, text="Buscar", bg="#3b82f6", fg="white", command=buscar).pack(pady=10)
 
@@ -134,46 +167,46 @@ class Interfaz:
             email_entry.insert(0, contacto.get_email())
 
         def ejecutar():
-            nombre_val = nombre_entry.get().strip()
-            telefono_val = telefono_entry.get().strip()
-            email_val = email_entry.get().strip()
+            nombre = nombre_entry.get()
+            telefono = telefono_entry.get()
+            email = email_entry.get()
 
-            if not nombre_val or not telefono_val or not email_val:
-                messagebox.showwarning("Campos vacíos", "Por favor completa todos los campos.")
+            if not nombre or not telefono or not email:
+                messagebox.showwarning("Campos requeridos", "Todos los campos son obligatorios.")
                 return
 
-            if not re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", email_val):
-                messagebox.showwarning("Email inválido", "Por favor ingresa un correo electrónico válido.")
+            if not re.match(r"^[\w\.-]+@[\w\.-]+\.\w+$", email):
+                messagebox.showwarning("Correo inválido", "El correo electrónico no es válido.")
                 return
 
-            if not re.match(r"^\d{7,15}$", telefono_val):
-                messagebox.showwarning("Teléfono inválido", "Ingresa un número de teléfono válido (7 a 15 dígitos).")
+            if not telefono.isdigit() or len(telefono) < 7:
+                messagebox.showwarning("Teléfono inválido", "El número de teléfono debe tener al menos 7 dígitos.")
                 return
 
             if contacto:
-                self.agenda.actualizar_contacto(contacto.get_nombre(), telefono_val, email_val)
+                self.agenda.actualizar_contacto(nombre, telefono, email)
                 messagebox.showinfo("Actualizado", "Contacto actualizado correctamente")
-                ventana.destroy()
             else:
-                nuevo = Contacto(nombre_val, telefono_val, email_val)
+                nuevo = Contacto(nombre, telefono, email)
                 exito = self.agenda.agregar_contacto(nuevo)
                 if exito:
                     messagebox.showinfo("Agregado", "Contacto agregado correctamente")
                 else:
                     messagebox.showwarning("Error", "No se pudo agregar el contacto")
-                ventana.destroy()
+
+            ventana.destroy()
             self.mostrar_contactos()
 
         tk.Button(ventana, text="Guardar", bg="#3b82f6", fg="white", command=ejecutar).pack(pady=20)
 
     def agregar_contacto(self):
-        messagebox.showinfo("Info", "Funcionalidad de agregar contacto aún no implementada.")
+        pass
 
     def buscar_contacto(self):
-        messagebox.showinfo("Info", "Funcionalidad de buscar contacto aún no implementada.")
+        pass
 
     def actualizar_contacto(self, nombre):
-        messagebox.showinfo("Info", "Funcionalidad de actualizar contacto aún no implementada.")
+        pass
 
     def eliminar_contacto(self, nombre):
         confirmacion = messagebox.askyesno("Confirmar", "¿Seguro que deseas eliminar este contacto?")
