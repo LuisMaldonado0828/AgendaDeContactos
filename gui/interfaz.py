@@ -15,6 +15,11 @@ class Interfaz:
         self.hide_message_timer = None
         self.current_confirmation_dialog = None
 
+        # Atributos para la funcionalidad de búsqueda
+        self.search_entry = None
+        self.search_results_frame = None 
+        self._search_timer = None 
+
         self.root.title("Agenda de Contactos - Dark Side Of Devs")
         self.root.geometry("1000x600")
         self.root.config(bg="#18152b")
@@ -88,7 +93,7 @@ class Interfaz:
         self.sidebar.pack(side="left", fill="y")
 
         self.logo = ttk.Label(self.sidebar, text="🧠\nDARK SIDE\nOF DEVS",
-                                background=self.bg_sidebar, foreground='white', font=self.font_logo)
+                                 background=self.bg_sidebar, foreground='white', font=self.font_logo)
         self.logo.pack(pady=20)
 
         self.btn_contactos = ttk.Button(self.sidebar, text="📂 Contactos", style='Sidebar.TButton', command=self.mostrar_contactos)
@@ -107,7 +112,7 @@ class Interfaz:
         self.message_label.pack(pady=5)
 
         self.contact_list_frame = None 
-        self.mostrar_contactos()
+        self.mostrar_contactos() # Llama a mostrar contactos al inicio de la aplicación
 
     def _show_internal_message(self, message, is_error=False):
         """Muestra un mensaje temporal de éxito o error en la interfaz principal."""
@@ -142,7 +147,10 @@ class Interfaz:
             self.error_label_form.config(text="")
 
     def mostrar_contactos(self):
-        """Muestra la lista de contactos como tarjetas en un área desplazable."""
+        """
+        Muestra la lista de contactos como tarjetas en un área desplazable, con barra de búsqueda.
+        Se ha corregido el orden de inicialización de scrollable_content_frame.
+        """
         self.limpiar_main_area()
         if self.formulario_actual_frame:
             self.formulario_actual_frame.destroy()
@@ -150,47 +158,90 @@ class Interfaz:
         if self.current_confirmation_dialog:
             self.current_confirmation_dialog.destroy()
             self.current_confirmation_dialog = None
+        
+        # --- Contenedor superior para el título y la barra de búsqueda ---
+        top_bar_frame = ttk.Frame(self.main_area, style='TFrame')
+        top_bar_frame.pack(fill="x", pady=(0, 10))
 
+        ttk.Label(top_bar_frame, text="📂 Mis Contactos", font=self.font_heading,
+                  foreground=self.text_light, background=self.bg_main).pack(side="left", padx=(0, 20))
+
+        # Barra de búsqueda
+        search_frame = ttk.Frame(top_bar_frame, style='TFrame')
+        search_frame.pack(side="right", fill="x", expand=True)
+
+        self.search_entry = ttk.Entry(search_frame, width=30, style='TEntry')
+        self.search_entry.pack(side="left", fill="x", expand=True, padx=(0,5))
+        self.search_entry.insert(0, "Buscar por nombre...")
+        self.search_entry.bind("<FocusIn>", self._clear_search_placeholder)
+        self.search_entry.bind("<FocusOut>", self._restore_search_placeholder)
+        self.search_entry.bind("<KeyRelease>", self._perform_search_delayed)
+
+        ttk.Button(search_frame, text="🔍", style='TButton', command=self._perform_search).pack(side="left")
+
+        # --- Fin del contenedor superior ---
+
+        # --- INICIO DEL ORDEN CORRECTO DE INICIALIZACIÓN ---
         self.contact_list_frame = ttk.Frame(self.main_area, style='TFrame')
         self.contact_list_frame.pack(fill="both", expand=True)
-
-        contactos = self.agenda.obtener_contactos()
-        if not contactos:
-            ttk.Label(self.contact_list_frame, text="No hay contactos guardados. ¡Agrega uno!",
-                      font=self.font_main, foreground=self.text_light, background=self.bg_main).pack(pady=40)
-            return
 
         canvas = tk.Canvas(self.contact_list_frame, bg=self.bg_main, highlightthickness=0)
         scrollbar = ttk.Scrollbar(self.contact_list_frame, orient="vertical", command=canvas.yview)
         
-        scrollable_frame = ttk.Frame(canvas, style='TFrame') 
-        self.canvas_window_id = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        self.scrollable_content_frame = ttk.Frame(canvas, style='TFrame') # Esta línea DEBE ejecutarse antes de cualquier intento de acceder a ella
+        
+        self.canvas_window_id = canvas.create_window((0, 0), window=self.scrollable_content_frame, anchor="nw", width=1) 
+        
+        self.scrollable_content_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        
+        canvas.bind("<Configure>", lambda e: canvas.itemconfigure(self.canvas_window_id, width=e.width))
 
         canvas.configure(yscrollcommand=scrollbar.set)
         
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
         
-        # --- AÑADIDOS PARA SCROLL CON RUEDA/TOUCHPAD ---
-        # 1. Configurar el canvas para que el scrollregion se actualice cuando cambie el tamaño del frame interno
-        scrollable_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        
-        # 2. Vincular el evento de la rueda del ratón al canvas (Windows/macOS)
         canvas.bind("<MouseWheel>", lambda event: canvas.yview_scroll(int(-1*(event.delta/120)), "units"))
-        
-        # 3. Vincular los eventos de la rueda del ratón (Linux)
         canvas.bind("<Button-4>", lambda event: canvas.yview_scroll(-1, "units"))
         canvas.bind("<Button-5>", lambda event: canvas.yview_scroll(1, "units"))
-        # --- FIN DE LOS AÑADIDOS ---
+        # --- FIN DEL ORDEN CORRECTO DE INICIALIZACIÓN ---
 
-        self.root.update_idletasks() # Actualiza para calcular tamaños correctamente
+        # Se llama a _perform_search DESPUÉS de que scrollable_content_frame esté creado
+        self._perform_search() 
+
+        self.root.update_idletasks() 
         
-        scrollable_frame.grid_columnconfigure(0, weight=1)
-        scrollable_frame.grid_columnconfigure(1, weight=1)
+        self.scrollable_content_frame.grid_columnconfigure(0, weight=1)
+        self.scrollable_content_frame.grid_columnconfigure(1, weight=1)
 
-        for index, contacto in enumerate(contactos):
-            frame_card = ttk.Frame(scrollable_frame, style='ContactCard.TFrame', padding=15, relief="solid", borderwidth=1)
-            frame_card.grid(row=index // 2, column=index % 2, padx=15, pady=15, sticky="nsew")
+        self.scrollable_content_frame.update_idletasks()
+        canvas.config(scrollregion=canvas.bbox("all"))
+
+
+    def _display_contacts_in_grid(self, contactos_a_mostrar):
+        """
+        Limpia el frame de contactos y los muestra en una cuadrícula.
+        Utilizado tanto para la visualización inicial como para los resultados de búsqueda.
+        """
+        # Limpiar cualquier contacto previamente mostrado
+        for widget in self.scrollable_content_frame.winfo_children():
+            widget.destroy()
+
+        if not contactos_a_mostrar:
+            no_contacts_label = ttk.Label(self.scrollable_content_frame, text="No se encontraron contactos que coincidan.",
+                                        font=self.font_main, foreground=self.text_light, background=self.bg_main)
+            no_contacts_label.grid(row=0, column=0, columnspan=2, pady=40, sticky="nsew") 
+            self.scrollable_content_frame.grid_rowconfigure(0, weight=1) 
+            return
+
+        num_cols = 2 # Define el número de columnas que deseas
+
+        for index, contacto in enumerate(contactos_a_mostrar):
+            frame_card = ttk.Frame(self.scrollable_content_frame, style='ContactCard.TFrame', padding=15, relief="solid", borderwidth=1)
+            
+            row = index // num_cols
+            col = index % num_cols
+            frame_card.grid(row=row, column=col, padx=15, pady=15, sticky="nsew") 
             
             ttk.Label(frame_card, text=contacto.nombre, foreground=self.text_light, background=self.bg_card, font=self.font_heading).pack(anchor="w", pady=(0,5))
             ttk.Label(frame_card, text=f"📞 {contacto.telefono}", foreground=self.text_light, background=self.bg_card, font=self.font_main).pack(anchor="w")
@@ -201,9 +252,44 @@ class Interfaz:
 
             ttk.Button(btn_frame_card, text="✏️ Editar", style='TButton', command=lambda c=contacto: self.mostrar_formulario_editar(c)).pack(side="left", padx=5)
             ttk.Button(btn_frame_card, text="🗑️ Eliminar", style='Danger.TButton', command=lambda c=contacto: self._show_delete_confirmation(c)).pack(side="left")
+        
+        self.scrollable_content_frame.update_idletasks()
+        if hasattr(self, 'canvas_window_id') and self.contact_list_frame.winfo_children():
+            current_canvas = self.contact_list_frame.winfo_children()[0] 
+            if isinstance(current_canvas, tk.Canvas):
+                current_canvas.config(scrollregion=current_canvas.bbox("all"))
 
-        scrollable_frame.update_idletasks()
-        canvas.config(scrollregion=canvas.bbox("all"))
+    def _clear_search_placeholder(self, event):
+        """Elimina el texto de marcador de posición cuando el usuario hace clic en la barra de búsqueda."""
+        if self.search_entry.get() == "Buscar por nombre...":
+            self.search_entry.delete(0, tk.END)
+            self.search_entry.config(foreground=self.text_light) 
+
+    def _restore_search_placeholder(self, event):
+        """Restaura el texto de marcador de posición si la barra de búsqueda está vacía."""
+        if not self.search_entry.get():
+            self.search_entry.insert(0, "Buscar por nombre...")
+            self.search_entry.config(foreground="#808080") 
+
+    def _perform_search_delayed(self, event):
+        """Realiza la búsqueda con un pequeño retraso para evitar ejecuciones excesivas."""
+        if self._search_timer: 
+            self.root.after_cancel(self._search_timer)
+        self._search_timer = self.root.after(300, self._perform_search)
+
+    def _perform_search(self):
+        """Realiza la búsqueda de contactos según el texto de entrada."""
+        search_query = self.search_entry.get().strip()
+        if search_query == "Buscar por nombre...":
+            search_query = "" 
+
+        if not search_query:
+            contactos_filtrados = self.agenda.obtener_contactos()
+        else:
+            contactos_filtrados = self.agenda.buscar_contactos_por_cadena(search_query)
+        
+        self._display_contacts_in_grid(contactos_filtrados)
+
 
     def crear_formulario(self, title, save_command, initial_contact=None):
         """Crea y muestra un formulario genérico para agregar o editar contactos."""
@@ -215,15 +301,15 @@ class Interfaz:
         self.formulario_actual_frame.place(relx=0.5, rely=0.5, anchor="center")
 
         btn_cerrar = ttk.Button(self.formulario_actual_frame, text="❌",
-                                command=self.cerrar_formulario_actual,
-                                style='Close.TButton')
+                                 command=self.cerrar_formulario_actual,
+                                 style='Close.TButton')
         btn_cerrar.place(relx=1.0, rely=0.0, anchor='ne', x=5, y=-5)
 
         ttk.Label(self.formulario_actual_frame, text=title, font=self.font_heading,
-                  background=self.bg_form, foreground=self.text_light).grid(row=0, column=0, columnspan=2, pady=15)
+                    background=self.bg_form, foreground=self.text_light).grid(row=0, column=0, columnspan=2, pady=15)
 
         self.error_label_form = ttk.Label(self.formulario_actual_frame, text="",
-                                          foreground=self.accent_red, font=self.font_error, background=self.bg_form)
+                                             foreground=self.accent_red, font=self.font_error, background=self.bg_form)
         self.error_label_form.grid(row=1, column=0, columnspan=2, pady=(0, 10))
 
         ttk.Label(self.formulario_actual_frame, text="Nombre:", style='Form.TLabel').grid(row=2, column=0, sticky="e", pady=5, padx=5)
@@ -270,10 +356,7 @@ class Interfaz:
         if not nombre.strip():
             self.error_label_form.config(text="⚠️ Error: El nombre no puede estar vacío.")
             return False
-        if not all(char.isalpha() or char.isspace() for char in nombre.strip()):
-            self.error_label_form.config(text="⚠️ Error: El nombre solo debe contener letras y espacios.")
-            return False
-
+        
         if not telefono.strip():
             self.error_label_form.config(text="⚠️ Error: El teléfono no puede estar vacío.")
             return False
@@ -289,13 +372,20 @@ class Interfaz:
             self.error_label_form.config(text="⚠️ Error: Formato de email inválido (ej. usuario@dominio.com).")
             return False
 
-        duplicado_por_nombre_tel = self.agenda.buscar_contacto(nombre=nombre.strip(), telefono=telefono.strip(), contacto_a_excluir=contacto_a_excluir)
-        if duplicado_por_nombre_tel:
-            self.error_label_form.config(text="⚠️ Error: Ya existe un contacto con ese nombre y teléfono.")
+        # Validaciones de duplicados para agregar (contacto_a_excluir será None)
+        # y para editar (contacto_a_excluir será el contacto original para no compararse a sí mismo)
+
+        # Buscar por teléfono, excluyendo el contacto actual si estamos editando
+        # La búsqueda de duplicados se hace con .lower() para ser insensible a mayúsculas/minúsculas
+        duplicado_tel = self.agenda.buscar_contacto(telefono=telefono.strip(), contacto_a_excluir=contacto_a_excluir)
+        if duplicado_tel:
+            self.error_label_form.config(text="⚠️ Error: Ya existe un contacto con ese teléfono.")
             return False
         
-        duplicado_por_email = self.agenda.buscar_contacto(email=email.strip(), contacto_a_excluir=contacto_a_excluir)
-        if duplicado_por_email:
+        # Buscar por email, excluyendo el contacto actual si estamos editando
+        # La búsqueda de duplicados se hace con .lower() para ser insensible a mayúsculas/minúsculas
+        duplicado_email = self.agenda.buscar_contacto(email=email.strip(), contacto_a_excluir=contacto_a_excluir)
+        if duplicado_email:
             self.error_label_form.config(text="⚠️ Error: Ya existe un contacto con ese email.")
             return False
 
@@ -307,15 +397,18 @@ class Interfaz:
         telefono = self.entry_telefono.get().strip()
         email = self.entry_email.get().strip()
 
+        # Las validaciones de duplicados ahora se realizan correctamente por la Agenda
+        # que usa las UNIQUE constraints de SQLite y las consultas de búsqueda.
         if not self.validar_datos_contacto(nombre, telefono, email):
             return
 
-        nuevo_contacto = Contacto(nombre, telefono, email)
+        nuevo_contacto = Contacto(nombre, telefono, email) 
         if self.agenda.agregar_contacto(nuevo_contacto):
             self._show_internal_message("✅ Contacto agregado correctamente.")
             self.cerrar_formulario_actual()
         else:
-            self._show_internal_message("❌ Error: No se pudo agregar el contacto. Puede que ya exista un email igual.", is_error=True)
+            # Este mensaje ahora es más preciso debido a la validación previa
+            self._show_internal_message("❌ Error: No se pudo agregar el contacto. Verifique que el email o teléfono no estén duplicados.", is_error=True)
 
     def guardar_edicion(self, contacto_original):
         """Intenta guardar los cambios de un contacto editado después de la validación."""
@@ -330,10 +423,11 @@ class Interfaz:
             self._show_internal_message("✅ Contacto editado correctamente.")
             self.cerrar_formulario_actual()
         else:
-            self._show_internal_message("❌ Error: No se pudo editar el contacto. Verifique datos.", is_error=True)
+            self._show_internal_message("❌ Error: No se pudo editar el contacto. Verifique que el email o teléfono no estén duplicados.", is_error=True)
 
     def _show_delete_confirmation(self, contacto_a_eliminar):
         """Muestra un diálogo de confirmación interno para eliminar un contacto."""
+        # Oculta los elementos principales para mostrar el diálogo de confirmación en el centro
         if self.formulario_actual_frame:
             self.formulario_actual_frame.place_forget()
         if self.contact_list_frame:
@@ -343,15 +437,15 @@ class Interfaz:
         self.current_confirmation_dialog.place(relx=0.5, rely=0.5, anchor="center")
 
         ttk.Label(self.current_confirmation_dialog, text=f"¿Estás seguro de eliminar a {contacto_a_eliminar.nombre}?",
-                  font=self.font_heading, foreground=self.text_light, background=self.bg_form).pack(pady=20)
+                    font=self.font_heading, foreground=self.text_light, background=self.bg_form).pack(pady=20)
         
         btn_frame = ttk.Frame(self.current_confirmation_dialog, style='Form.TFrame')
         btn_frame.pack(pady=10)
 
         ttk.Button(btn_frame, text="✅ Sí, Eliminar", style='Danger.TButton', 
-                   command=lambda: self._perform_deletion(contacto_a_eliminar)).pack(side="left", padx=10)
+                    command=lambda: self._perform_deletion(contacto_a_eliminar)).pack(side="left", padx=10)
         ttk.Button(btn_frame, text="❌ No, Cancelar", style='TButton', 
-                   command=self._cancel_deletion).pack(side="left", padx=10)
+                    command=self._cancel_deletion).pack(side="left", padx=10)
 
     def _perform_deletion(self, contacto_a_eliminar):
         """Ejecuta la eliminación del contacto y muestra un mensaje."""
@@ -359,7 +453,7 @@ class Interfaz:
             self._show_internal_message("✅ Contacto eliminado correctamente.")
         else:
             self._show_internal_message("❌ Error: No se pudo eliminar el contacto.", is_error=True)
-        self._cancel_deletion()
+        self._cancel_deletion() # Cierra el diálogo de confirmación y vuelve a mostrar contactos
         self.mostrar_contactos()
 
     def _cancel_deletion(self):
@@ -367,7 +461,7 @@ class Interfaz:
         if self.current_confirmation_dialog:
             self.current_confirmation_dialog.destroy()
             self.current_confirmation_dialog = None
-        self.mostrar_contactos()
+        self.mostrar_contactos() # Vuelve a mostrar la lista de contactos
 
     def mostrar_acerca_de(self):
         """Muestra la información 'Acerca de' en la interfaz principal."""
@@ -383,25 +477,25 @@ class Interfaz:
         about_frame.place(relx=0.5, rely=0.5, anchor="center")
         
         btn_cerrar_about = ttk.Button(about_frame, text="❌",
-                                      command=self.mostrar_contactos,
-                                      style='Close.TButton')
+                                         command=self.mostrar_contactos,
+                                         style='Close.TButton')
         btn_cerrar_about.place(relx=1.0, rely=0.0, anchor='ne', x=5, y=-5)
 
 
         ttk.Label(about_frame, text="🚀 Agenda de Contactos",
-                  font=self.font_about_title, foreground=self.accent_blue, background=self.bg_form).pack(pady=20)
+                    font=self.font_about_title, foreground=self.accent_blue, background=self.bg_form).pack(pady=20)
 
         ttk.Label(about_frame, text="Proyecto desarrollado por:",
-                  font=self.font_about_text, foreground=self.text_light, background=self.bg_form).pack(pady=(10, 0))
+                    font=self.font_about_text, foreground=self.text_light, background=self.bg_form).pack(pady=(10, 0))
 
         ttk.Label(about_frame, text="  • Jesus Manuel Torres Bandera (Product Owner)",
-                  font=self.font_about_text, foreground=self.text_light, background=self.bg_form).pack(anchor='center')
+                    font=self.font_about_text, foreground=self.text_light, background=self.bg_form).pack(anchor='center')
         ttk.Label(about_frame, text="  • Diego Fernando Pinzon Quintero (Scrum Master)",
-                  font=self.font_about_text, foreground=self.text_light, background=self.bg_form).pack(anchor='center')
+                    font=self.font_about_text, foreground=self.text_light, background=self.bg_form).pack(anchor='center')
         ttk.Label(about_frame, text="  • Luis David Maldonado Suarez (Development Team)",
-                  font=self.font_about_text, foreground=self.text_light, background=self.bg_form).pack(anchor='center')
+                    font=self.font_about_text, foreground=self.text_light, background=self.bg_form).pack(anchor='center')
         ttk.Label(about_frame, text="  • Oscar Leonardo Macias Puentes (Development Team)",
-                  font=self.font_about_text, foreground=self.text_light, background=self.bg_form).pack(anchor='center')
+                    font=self.font_about_text, foreground=self.text_light, background=self.bg_form).pack(anchor='center')
         
         ttk.Label(about_frame, text="\nEquipo: DARK SIDE OF DEVS",
-                  font=self.font_button, foreground=self.text_light, background=self.bg_form).pack(pady=(15, 0))
+                    font=self.font_button, foreground=self.text_light, background=self.bg_form).pack(pady=(15, 0))
