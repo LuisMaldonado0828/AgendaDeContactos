@@ -3,6 +3,7 @@ from tkinter import ttk, messagebox, font, filedialog
 from PIL import Image, ImageTk, ImageDraw, ImageFont
 import os
 import shutil
+import sys # Importar sys para detectar el sistema operativo
 
 from logica.clases import Contacto, Agenda
 
@@ -19,7 +20,7 @@ class Interfaz:
         self.message_label = None
         self.hide_message_timer = None
         self.current_confirmation_dialog = None
-        self.canvas = None # Añadimos self.canvas para poder referenciarlo en otros métodos
+        self.canvas = None 
 
         # Atributos para la funcionalidad de búsqueda
         self.search_entry = None
@@ -28,7 +29,7 @@ class Interfaz:
 
         # Nuevo: Atributo para la ruta de la foto seleccionada en el formulario
         self.selected_photo_path = None
-        self.photo_preview_label = None # Para mostrar una vista previa de la foto en el formulario
+        self.photo_preview_label = None 
 
         # Asegurarse de que la carpeta de fotos exista
         os.makedirs(PHOTOS_DIR, exist_ok=True)
@@ -50,7 +51,7 @@ class Interfaz:
         self.accent_red = "#e63946"
         self.border_color = "#3A3A3A"
         self.success_green = "#28a745"
-        self.placeholder_bg = "#6C757D" # Color para el fondo de la inicial
+        self.placeholder_bg = "#6C757D" 
 
         self.font_main = font.Font(family="Roboto", size=11)
         self.font_heading = font.Font(family="Roboto Medium", size=16, weight="bold")
@@ -59,7 +60,6 @@ class Interfaz:
         self.font_logo = font.Font(family="Poppins", size=12, weight="bold")
         self.font_about_title = font.Font(family="Poppins", size=18, weight="bold")
         self.font_about_text = font.Font(family="Roboto", size=10)
-        # Nueva fuente para la inicial
         self.font_initial = font.Font(family="Roboto Medium", size=40, weight="bold")
 
 
@@ -104,11 +104,8 @@ class Interfaz:
                                      relief="solid",
                                      bordercolor=self.border_color)
         self.style.configure('ContactCard.TLabel', background=self.bg_card, foreground=self.text_light)
-        # Se renombra para mejor claridad o se crea un nuevo estilo si se necesita un diseño diferente para los botones de la tarjeta
-        # self.style.configure('ContactCardButtons.TFrame', background=self.bg_card) # Mantener este si los botones tienen el mismo fondo que la tarjeta
-        self.style.configure('ContactCardButtonsFrame.TFrame', background=self.bg_card) # Nuevo estilo si el fondo de los botones es diferente
+        self.style.configure('ContactCardButtonsFrame.TFrame', background=self.bg_card)
 
-        # Nuevo estilo para el marco de la imagen/inicial
         self.style.configure('PhotoFrame.TFrame', background=self.bg_card, borderwidth=1, relief="solid", bordercolor=self.border_color)
         self.style.configure('PhotoPlaceholder.TLabel', background=self.placeholder_bg, foreground="white", font=self.font_initial, anchor="center")
 
@@ -136,7 +133,7 @@ class Interfaz:
         self.message_label.pack(pady=5)
 
         self.contact_list_frame = None 
-        self.mostrar_contactos() # Llama a mostrar contactos al inicio de la aplicación
+        self.mostrar_contactos() 
 
     def _show_internal_message(self, message, is_error=False):
         """Muestra un mensaje temporal de éxito o error en la interfaz principal."""
@@ -170,11 +167,10 @@ class Interfaz:
         if self.error_label_form and self.error_label_form.winfo_exists():
             self.error_label_form.config(text="")
         
-        # Limpiar la ruta de la foto seleccionada y la vista previa
         self.selected_photo_path = None
         if self.photo_preview_label and self.photo_preview_label.winfo_exists():
             self.photo_preview_label.config(image='')
-            self.photo_preview_label.image = None # Eliminar referencia para evitar recolector de basura
+            self.photo_preview_label.image = None 
 
     def mostrar_contactos(self):
         """
@@ -188,14 +184,12 @@ class Interfaz:
             self.current_confirmation_dialog.destroy()
             self.current_confirmation_dialog = None
         
-        # --- Contenedor superior para el título y la barra de búsqueda ---
         top_bar_frame = ttk.Frame(self.main_area, style='TFrame')
         top_bar_frame.pack(fill="x", pady=(0, 10))
 
         ttk.Label(top_bar_frame, text="📂 Mis Contactos", font=self.font_heading,
                     foreground=self.text_light, background=self.bg_main).pack(side="left", padx=(0, 20))
 
-        # Barra de búsqueda
         search_frame = ttk.Frame(top_bar_frame, style='TFrame')
         search_frame.pack(side="right", fill="x", expand=True)
 
@@ -208,22 +202,17 @@ class Interfaz:
 
         ttk.Button(search_frame, text="🔍", style='TButton', command=self._perform_search).pack(side="left")
 
-        # --- Fin del contenedor superior ---
-
         self.contact_list_frame = ttk.Frame(self.main_area, style='TFrame')
         self.contact_list_frame.pack(fill="both", expand=True)
 
-        self.canvas = tk.Canvas(self.contact_list_frame, bg=self.bg_main, highlightthickness=0) # Asignamos a self.canvas
+        self.canvas = tk.Canvas(self.contact_list_frame, bg=self.bg_main, highlightthickness=0) 
         scrollbar = ttk.Scrollbar(self.contact_list_frame, orient="vertical", command=self.canvas.yview)
         
         self.scrollable_content_frame = ttk.Frame(self.canvas, style='TFrame')
         
         self.canvas_window_id = self.canvas.create_window((0, 0), window=self.scrollable_content_frame, anchor="nw") 
         
-        # Cuando el contenido del frame cambia de tamaño, actualiza el scrollregion del canvas
         self.scrollable_content_frame.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
-        
-        # Cuando el canvas cambia de tamaño, ajusta el ancho de la ventana que contiene el frame
         self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfigure(self.canvas_window_id, width=e.width))
 
         self.canvas.configure(yscrollcommand=scrollbar.set)
@@ -232,17 +221,15 @@ class Interfaz:
         scrollbar.pack(side="right", fill="y")
         
         # Habilitar el scroll con touchpad/rueda del ratón
-        # Vinculamos los eventos de scroll directamente al canvas
         self.canvas.bind("<MouseWheel>", self._on_mousewheel_event) 
-        self.canvas.bind("<Button-4>", self._on_mousewheel_event) # Linux (scroll up)
-        self.canvas.bind("<Button-5>", self._on_mousewheel_event)  # Linux (scroll down)
+        self.canvas.bind("<Button-4>", self._on_mousewheel_event) 
+        self.canvas.bind("<Button-5>", self._on_mousewheel_event) 
 
 
         self._perform_search() 
 
         self.root.update_idletasks() 
         
-        # Configurar las columnas para que se expandan dentro del scrollable_content_frame
         self.scrollable_content_frame.grid_columnconfigure(0, weight=1)
         self.scrollable_content_frame.grid_columnconfigure(1, weight=1)
 
@@ -251,15 +238,26 @@ class Interfaz:
 
     def _on_mousewheel_event(self, event):
         """Maneja el evento de la rueda del ratón/touchpad para el desplazamiento."""
-        if self.canvas: # Asegurarse de que el canvas exista
-            # Determinar la dirección y la cantidad del scroll
-            if event.num == 4: # Button-4 (scroll up en Linux)
-                self.canvas.yview_scroll(-1, "units")
-            elif event.num == 5: # Button-5 (scroll down en Linux)
-                self.canvas.yview_scroll(1, "units")
-            elif event.delta: # MouseWheel (Windows/macOS)
-                # Multiplicamos por -1 para que el scroll sea más intuitivo (hacia abajo para bajar)
-                self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        if self.canvas:
+            scroll_amount = 0
+            # Ajustar la velocidad de scroll
+            scroll_speed_factor = 20 # Puedes ajustar este valor
+
+            if sys.platform == "darwin":  # macOS
+                # macOS event.delta es más granular, no necesita división por 120
+                scroll_amount = -event.delta # Ya tiene el signo correcto, solo invertimos para ir hacia abajo
+            elif sys.platform == "win32":  # Windows
+                # En Windows, event.delta es un múltiplo de 120.
+                # Dividir por 120 lo normaliza a 1 o -1, luego multiplicamos por nuestro factor.
+                scroll_amount = int(-1 * (event.delta / 120) * scroll_speed_factor)
+            else: # Linux (X11)
+                if event.num == 4: # Scroll hacia arriba
+                    scroll_amount = -1 * scroll_speed_factor
+                elif event.num == 5: # Scroll hacia abajo
+                    scroll_amount = 1 * scroll_speed_factor
+            
+            if scroll_amount != 0:
+                self.canvas.yview_scroll(scroll_amount, "units")
             return "break" # Evita que el evento se propague más allá de este manejador
 
     def _display_contacts_in_grid(self, contactos_a_mostrar):
@@ -274,7 +272,6 @@ class Interfaz:
                                             font=self.font_main, foreground=self.text_light, background=self.bg_main)
             no_contacts_label.grid(row=0, column=0, columnspan=2, pady=40, sticky="nsew") 
             self.scrollable_content_frame.grid_rowconfigure(0, weight=1) 
-            # Vincular eventos de scroll al label si no hay contactos
             self._bind_scroll_events_to_widget(no_contacts_label)
             return
 
@@ -287,36 +284,29 @@ class Interfaz:
             col = index % num_cols
             frame_card.grid(row=row, column=col, padx=15, pady=15, sticky="nsew") 
             
-            # --- Diseño de la tarjeta: Foto, Info y Botones ---
-            # Usamos grid dentro de frame_card para un control más preciso
-            
-            # 1. Área de la foto/inicial
             photo_frame = ttk.Frame(frame_card, style='PhotoFrame.TFrame', width=70, height=70)
-            photo_frame.grid(row=0, column=0, rowspan=2, padx=(0, 10), pady=(0, 5), sticky="n") # rowspan para que la imagen no se mueva
-            photo_frame.pack_propagate(False) # Evita que el frame se redimensionese con su contenido
+            photo_frame.grid(row=0, column=0, rowspan=2, padx=(0, 10), pady=(0, 5), sticky="n") 
+            photo_frame.pack_propagate(False) 
 
             img_to_display = self._get_contact_image(contacto.get_foto_path(), contacto.get_nombre())
             photo_label = ttk.Label(photo_frame, image=img_to_display, background=self.bg_card)
-            photo_label.image = img_to_display # Mantener referencia
+            photo_label.image = img_to_display 
             photo_label.pack(expand=True)
 
-            # 2. Información del contacto
-            info_frame = ttk.Frame(frame_card, style='ContactCard.TFrame') # Usar el estilo de la tarjeta
-            info_frame.grid(row=0, column=1, padx=(0, 5), pady=(0,2), sticky="ew") # fill="x", expand=True
+            info_frame = ttk.Frame(frame_card, style='ContactCard.TFrame') 
+            info_frame.grid(row=0, column=1, padx=(0, 5), pady=(0,2), sticky="ew") 
 
             ttk.Label(info_frame, text=contacto.nombre, foreground=self.text_light, background=self.bg_card, font=self.font_heading).pack(anchor="w", fill="x", expand=True)
             ttk.Label(info_frame, text=f"📞 {contacto.telefono}", foreground=self.text_light, background=self.bg_card, font=self.font_main).pack(anchor="w", fill="x", expand=True)
             ttk.Label(info_frame, text=f"📧 {contacto.email}", foreground=self.text_light, background=self.bg_card, font=self.font_main).pack(anchor="w", fill="x", expand=True)
             
-            # 3. Botones (en una nueva fila debajo de la información del contacto)
-            btn_frame_card = ttk.Frame(frame_card, style='ContactCardButtonsFrame.TFrame') # Usar el nuevo estilo para los botones
-            btn_frame_card.grid(row=1, column=1, columnspan=1, pady=(10, 0), sticky="w") # Alinear a la izquierda
+            btn_frame_card = ttk.Frame(frame_card, style='ContactCardButtonsFrame.TFrame') 
+            btn_frame_card.grid(row=1, column=1, columnspan=1, pady=(10, 0), sticky="w") 
 
             ttk.Button(btn_frame_card, text="✏️ Editar", style='TButton', command=lambda c=contacto: self.mostrar_formulario_editar(c)).pack(side="left", padx=5)
             ttk.Button(btn_frame_card, text="🗑️ Eliminar", style='Danger.TButton', command=lambda c=contacto: self._show_delete_confirmation(c)).pack(side="left")
             
-            # Asegurar que la columna de información se expanda
-            frame_card.grid_columnconfigure(1, weight=1) # Columna de info debe expandirse
+            frame_card.grid_columnconfigure(1, weight=1) 
 
             # Vincular eventos de scroll a cada elemento dentro de la tarjeta
             self._bind_scroll_events_to_widget(frame_card)
@@ -349,7 +339,7 @@ class Interfaz:
         """
         Carga la imagen del contacto si existe y es válida, de lo contrario genera una imagen con la inicial.
         """
-        image_size = (70, 70) # Tamaño fijo para las imágenes en las tarjetas
+        image_size = (70, 70) 
 
         if photo_path and os.path.exists(photo_path):
             try:
@@ -359,25 +349,19 @@ class Interfaz:
             except Exception as e:
                 print(f"Error al cargar imagen '{photo_path}': {e}")
         
-        # Si no hay foto o hubo un error, generar la inicial
         return self._generate_initial_image(contact_name, image_size)
 
     def _generate_initial_image(self, name, size):
         """Genera una imagen con la inicial del nombre del contacto."""
         initial = name[0].upper() if name else "?"
-        img = Image.new('RGB', size, color = self.placeholder_bg) # Fondo gris oscuro
+        img = Image.new('RGB', size, color = self.placeholder_bg) 
         d = ImageDraw.Draw(img)
         
         try:
-            # Puedes intentar cargar una fuente específica o usar la predeterminada si no la tienes
-            # Si tienes una fuente .ttf en la carpeta 'fonts', podrías usar:
-            # font_path = os.path.join(os.path.dirname(__file__), '..', 'fonts', 'Roboto-Medium.ttf')
-            # fnt = ImageFont.truetype(font_path, 40)
-            fnt = ImageFont.truetype("arial.ttf", 40) # Fallback: Asume arial.ttf está disponible
+            fnt = ImageFont.truetype("arial.ttf", 40) 
         except IOError:
-            fnt = ImageFont.load_default() # Fuente por defecto si no se encuentra la especificada
+            fnt = ImageFont.load_default() 
 
-        # Calcular posición para centrar el texto
         bbox = d.textbbox((0,0), initial, font=fnt)
         width, height = bbox[2] - bbox[0], bbox[3] - bbox[1]
         x = (size[0] - width) / 2 - bbox[0]
@@ -425,17 +409,16 @@ class Interfaz:
         )
         if file_path:
             self.selected_photo_path = file_path
-            # Mostrar vista previa de la imagen seleccionada
             try:
                 img = Image.open(file_path)
-                img = img.resize((100, 100), Image.Resampling.LANCZOS) # Tamaño de vista previa en el formulario
+                img = img.resize((100, 100), Image.Resampling.LANCZOS) 
                 img_tk = ImageTk.PhotoImage(img)
                 self.photo_preview_label.config(image=img_tk)
-                self.photo_preview_label.image = img_tk # Mantener referencia
-                self.photo_preview_label.config(background=self.bg_form) # Asegurar que el fondo sea el del formulario
+                self.photo_preview_label.image = img_tk 
+                self.photo_preview_label.config(background=self.bg_form) 
             except Exception as e:
                 self._show_internal_message(f"❌ Error al cargar la vista previa: {e}", is_error=True)
-                self.selected_photo_path = None # Reiniciar si hay error
+                self.selected_photo_path = None 
 
     def crear_formulario(self, title, save_command, initial_contact=None):
         """Crea y muestra un formulario genérico para agregar o editar contactos, ahora con selector de foto."""
@@ -458,13 +441,11 @@ class Interfaz:
                                                  foreground=self.accent_red, font=self.font_error, background=self.bg_form)
         self.error_label_form.grid(row=1, column=0, columnspan=3, pady=(0, 10))
 
-        # Configuración de las columnas para los campos de entrada
-        self.formulario_actual_frame.grid_columnconfigure(0, weight=0) # Columna de etiquetas fija
-        self.formulario_actual_frame.grid_columnconfigure(1, weight=1) # Columna de entradas se expande
-        self.formulario_actual_frame.grid_columnconfigure(2, weight=0) # Columna de foto fija
+        self.formulario_actual_frame.grid_columnconfigure(0, weight=0) 
+        self.formulario_actual_frame.grid_columnconfigure(1, weight=1) 
+        self.formulario_actual_frame.grid_columnconfigure(2, weight=0) 
 
 
-        # Campos de texto
         ttk.Label(self.formulario_actual_frame, text="Nombre:", style='Form.TLabel').grid(row=2, column=0, sticky="e", pady=5, padx=5)
         self.entry_nombre = ttk.Entry(self.formulario_actual_frame, width=35)
         self.entry_nombre.grid(row=2, column=1, pady=5, padx=5, sticky="ew")
@@ -477,34 +458,29 @@ class Interfaz:
         self.entry_email = ttk.Entry(self.formulario_actual_frame, width=35)
         self.entry_email.grid(row=4, column=1, pady=5, padx=5, sticky="ew")
 
-        # Selector de foto
-        ttk.Label(self.formulario_actual_frame, text="Foto:", style='Form.TLabel').grid(row=5, column=0, sticky="ne", pady=5, padx=5) # Alineado arriba a la derecha
+        ttk.Label(self.formulario_actual_frame, text="Foto:", style='Form.TLabel').grid(row=5, column=0, sticky="ne", pady=5, padx=5) 
         
         photo_input_frame = ttk.Frame(self.formulario_actual_frame, style='Form.TFrame')
-        photo_input_frame.grid(row=5, column=1, pady=5, padx=5, sticky="nw") # Alineado arriba a la izquierda
+        photo_input_frame.grid(row=5, column=1, pady=5, padx=5, sticky="nw") 
 
         ttk.Button(photo_input_frame, text="🖼️ Seleccionar Foto", command=self.select_photo, style='TButton').pack(side="left", padx=(0,5))
         ttk.Button(photo_input_frame, text="Limpiar", command=self._clear_photo_selection, style='Danger.TButton').pack(side="left")
 
-        # Vista previa de la foto (columna 2)
         self.photo_preview_label = ttk.Label(self.formulario_actual_frame, background=self.bg_form)
-        self.photo_preview_label.grid(row=2, column=2, rowspan=4, padx=10, pady=5, sticky="n") # Abarca varias filas, alineado al norte
+        self.photo_preview_label.grid(row=2, column=2, rowspan=4, padx=10, pady=5, sticky="n") 
 
 
         if initial_contact:
             self.entry_nombre.insert(0, initial_contact.nombre)
             self.entry_telefono.insert(0, initial_contact.telefono)
             self.entry_email.insert(0, initial_contact.email)
-            # Si hay un contacto inicial, precargar su foto o generar la inicial
             self.selected_photo_path = initial_contact.foto_path
             img_to_display = self._get_contact_image_for_form(initial_contact.foto_path, initial_contact.nombre)
             self.photo_preview_label.config(image=img_to_display)
             self.photo_preview_label.image = img_to_display
-            # El fondo de la preview debe coincidir con el del formulario si hay una foto, o el placeholder si es inicial.
             self.photo_preview_label.config(background=self.bg_form if initial_contact.foto_path else self.placeholder_bg)
         else:
-            # Si es un formulario de agregar, mostrar una inicial vacía por defecto
-            img_to_display = self._generate_initial_image("?", (100, 100)) # Inicial "?" para nuevo contacto
+            img_to_display = self._generate_initial_image("?", (100, 100)) 
             self.photo_preview_label.config(image=img_to_display)
             self.photo_preview_label.image = img_to_display
             self.photo_preview_label.config(background=self.placeholder_bg)
@@ -516,7 +492,7 @@ class Interfaz:
         """
         Similar a _get_contact_image, pero para el tamaño de vista previa del formulario.
         """
-        image_size = (100, 100) # Tamaño fijo para la vista previa en el formulario
+        image_size = (100, 100) 
 
         if photo_path and os.path.exists(photo_path):
             try:
@@ -531,7 +507,6 @@ class Interfaz:
     def _clear_photo_selection(self):
         """Limpia la selección de foto en el formulario y muestra la inicial del nombre."""
         self.selected_photo_path = None
-        # Generar inicial del nombre actual en el formulario si está disponible, sino "?"
         current_name = self.entry_nombre.get().strip() if hasattr(self, 'entry_nombre') else ""
         img_to_display = self._generate_initial_image(current_name if current_name else "?", (100, 100))
         self.photo_preview_label.config(image=img_to_display)
@@ -541,12 +516,12 @@ class Interfaz:
 
     def mostrar_formulario_agregar(self):
         """Muestra el formulario para agregar un nuevo contacto."""
-        self.selected_photo_path = None # Asegurarse de que no haya ruta de foto previa
+        self.selected_photo_path = None 
         self.crear_formulario("➕ Agregar Contacto", self.guardar_nuevo_contacto)
 
     def mostrar_formulario_editar(self, contacto):
         """Muestra el formulario para editar un contacto existente."""
-        self.selected_photo_path = contacto.foto_path # Cargar la ruta de la foto existente
+        self.selected_photo_path = contacto.foto_path 
         self.crear_formulario("✏️ Editar Contacto", lambda: self.guardar_edicion(contacto), initial_contact=contacto)
 
     def cerrar_formulario_actual(self):
@@ -569,7 +544,6 @@ class Interfaz:
         if not telefono.strip():
             self.error_label_form.config(text="⚠️ Error: El teléfono no puede estar vacío.")
             return False
-        # Eliminar cualquier espacio o guion para la validación numérica
         telefono_limpio = telefono.strip().replace(" ", "").replace("-", "")
         if not telefono_limpio.isdigit():
             self.error_label_form.config(text="⚠️ Error: El teléfono solo debe contener números (opcionalmente con espacios o guiones).")
@@ -578,19 +552,16 @@ class Interfaz:
         if not email.strip():
             self.error_label_form.config(text="⚠️ Error: El email no puede estar vacío.")
             return False
-        # Validación de formato de email más robusta (simple regex o email_validator si fuera un proyecto más grande)
         import re
         if not re.match(r"[^@]+@[^@]+\.[^@]+", email.strip()):
             self.error_label_form.config(text="⚠️ Error: Formato de email inválido (ej. usuario@dominio.com).")
             return False
 
-        # Buscar por teléfono, excluyendo el contacto actual si estamos editando
         duplicado_tel = self.agenda.buscar_contacto(telefono=telefono.strip(), contacto_a_excluir=contacto_a_excluir)
         if duplicado_tel:
             self.error_label_form.config(text="⚠️ Error: Ya existe un contacto con ese teléfono.")
             return False
         
-        # Buscar por email, excluyendo el contacto actual si estamos editando
         duplicado_email = self.agenda.buscar_contacto(email=email.strip(), contacto_a_excluir=contacto_a_excluir)
         if duplicado_email:
             self.error_label_form.config(text="⚠️ Error: Ya existe un contacto con ese email.")
@@ -604,13 +575,10 @@ class Interfaz:
         y retorna la ruta relativa para guardar en la DB.
         """
         if self.selected_photo_path:
-            # Generar un nombre único para la foto
             extension = os.path.splitext(self.selected_photo_path)[1]
-            # Usar el ID del contacto como nombre de archivo para asegurar unicidad y fácil referencia
             photo_filename = f"{contact_id}{extension}"
             destination_path = os.path.join(PHOTOS_DIR, photo_filename)
             try:
-                # Copiar y sobrescribir si ya existe (para ediciones)
                 shutil.copy2(self.selected_photo_path, destination_path)
                 return destination_path
             except Exception as e:
@@ -627,8 +595,6 @@ class Interfaz:
         if not self.validar_datos_contacto(nombre, telefono, email):
             return
 
-        # Creamos un Contacto temporal para obtener un ID antes de guardar la foto
-        # Esto es importante para nombrar la foto con el ID del contacto
         temp_contact = Contacto(nombre, telefono, email) 
         foto_path_to_save = self._save_photo_and_get_path(temp_contact.id_contacto)
 
@@ -637,7 +603,6 @@ class Interfaz:
             self._show_internal_message("✅ Contacto agregado correctamente.")
             self.cerrar_formulario_actual()
         else:
-            # Si falló al agregar (ej. duplicado), borrar la foto si se llegó a copiar
             if foto_path_to_save and os.path.exists(foto_path_to_save):
                 os.remove(foto_path_to_save)
             self._show_internal_message("❌ Error: No se pudo agregar el contacto. Verifique que los datos no estén duplicados.", is_error=True)
@@ -651,16 +616,15 @@ class Interfaz:
         if not self.validar_datos_contacto(nuevo_nombre, nuevo_telefono, nuevo_email, contacto_a_excluir=contacto_original):
             return
         
-        # Guardar la nueva foto si se seleccionó una, o usar la existente, o borrar si se limpió
         foto_path_to_save = None
-        if self.selected_photo_path: # Si el usuario seleccionó una nueva foto o mantuvo una existente
+        if self.selected_photo_path: 
             foto_path_to_save = self._save_photo_and_get_path(contacto_original.id_contacto)
-        elif self.selected_photo_path is None and contacto_original.foto_path: # Si la foto se limpió explícitamente
+        elif self.selected_photo_path is None and contacto_original.foto_path: 
             if os.path.exists(contacto_original.foto_path):
                 os.remove(contacto_original.foto_path)
-            foto_path_to_save = None # Establecer a None para borrar de la DB
-        else: # No se seleccionó nueva foto y no había una existente
-            foto_path_to_save = contacto_original.foto_path # Mantener la que ya tenía
+            foto_path_to_save = None 
+        else: 
+            foto_path_to_save = contacto_original.foto_path 
 
         if self.agenda.editar_contacto(contacto_original.id_contacto, nuevo_nombre, nuevo_telefono, nuevo_email, foto_path_to_save):
             self._show_internal_message("✅ Contacto editado correctamente.")
@@ -691,7 +655,6 @@ class Interfaz:
 
     def _perform_deletion(self, contacto_a_eliminar):
         """Ejecuta la eliminación del contacto y muestra un mensaje, además de eliminar la foto."""
-        # Eliminar el archivo de foto asociado si existe
         if contacto_a_eliminar.foto_path and os.path.exists(contacto_a_eliminar.foto_path):
             try:
                 os.remove(contacto_a_eliminar.foto_path)
