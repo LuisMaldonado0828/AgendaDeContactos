@@ -3,12 +3,16 @@ from tkinter import ttk, messagebox, font, filedialog
 from PIL import Image, ImageTk, ImageDraw, ImageFont
 import os
 import shutil
-import sys # Importar sys para detectar el sistema operativo
+import sys
+import qrcode
+import threading # Importar threading
+import queue     # Importar queue
 
 from logica.clases import Contacto, Agenda
 
 # Directorio para guardar las fotos de los contactos
 PHOTOS_DIR = "fotos_contactos"
+QR_DIR = "qrs_temp" 
 
 class Interfaz:
     """Define la estructura y el comportamiento de la interfaz gráfica de usuario."""
@@ -22,17 +26,15 @@ class Interfaz:
         self.current_confirmation_dialog = None
         self.canvas = None 
 
-        # Atributos para la funcionalidad de búsqueda
         self.search_entry = None
         self.search_results_frame = None 
         self._search_timer = None 
 
-        # Nuevo: Atributo para la ruta de la foto seleccionada en el formulario
         self.selected_photo_path = None
         self.photo_preview_label = None 
 
-        # Asegurarse de que la carpeta de fotos exista
         os.makedirs(PHOTOS_DIR, exist_ok=True)
+        os.makedirs(QR_DIR, exist_ok=True)
 
         self.root.title("Agenda de Contactos - Dark Side Of Devs")
         self.root.geometry("1000x600")
@@ -108,7 +110,8 @@ class Interfaz:
 
         self.style.configure('PhotoFrame.TFrame', background=self.bg_card, borderwidth=1, relief="solid", bordercolor=self.border_color)
         self.style.configure('PhotoPlaceholder.TLabel', background=self.placeholder_bg, foreground="white", font=self.font_initial, anchor="center")
-
+        
+        self.style.configure('QRFrame.TFrame', background=self.bg_card, borderwidth=1, relief="solid", bordercolor=self.border_color)
 
         self.sidebar = ttk.Frame(root, width=150, style='Sidebar.TFrame')
         self.sidebar.pack(side="left", fill="y")
@@ -133,7 +136,16 @@ class Interfaz:
         self.message_label.pack(pady=5)
 
         self.contact_list_frame = None 
+        
+        # **NEW**: Queue para la comunicación entre hilos
+        self.image_queue = queue.Queue()
+        # Diccionario para mantener referencias a los PhotoImage por ID de contacto y tipo (foto/qr)
+        self.contact_images = {} # { (contact_id, 'photo'): PhotoImage, (contact_id, 'qr'): PhotoImage }
+
         self.mostrar_contactos() 
+
+        # **NEW**: Iniciar el procesador de cola periódicamente
+        self.root.after(100, self._process_image_queue) # Revisa la cola cada 100ms
 
     def _show_internal_message(self, message, is_error=False):
         """Muestra un mensaje temporal de éxito o error en la interfaz principal."""
@@ -155,6 +167,9 @@ class Interfaz:
             if widget != self.message_label:
                 widget.destroy()
         self._hide_internal_message()
+
+        # Limpiar referencias de imágenes al limpiar el área principal
+        self.contact_images.clear()
 
     def limpiar_campos_formulario(self):
         """Limpia el contenido de los campos de entrada, el mensaje de error y la vista previa de la foto del formulario."""
@@ -220,11 +235,12 @@ class Interfaz:
         self.canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
         
-        # Habilitar el scroll con touchpad/rueda del ratón
         self.canvas.bind("<MouseWheel>", self._on_mousewheel_event) 
         self.canvas.bind("<Button-4>", self._on_mousewheel_event) 
         self.canvas.bind("<Button-5>", self._on_mousewheel_event) 
 
+        # **NEW**: Reiniciar el diccionario de imágenes al mostrar contactos
+        self.contact_images = {} 
 
         self._perform_search() 
 
@@ -240,29 +256,26 @@ class Interfaz:
         """Maneja el evento de la rueda del ratón/touchpad para el desplazamiento."""
         if self.canvas:
             scroll_amount = 0
-            # Ajustar la velocidad de scroll
-            scroll_speed_factor = 20 # Puedes ajustar este valor
+            scroll_speed_factor = 20 
 
             if sys.platform == "darwin":  # macOS
-                # macOS event.delta es más granular, no necesita división por 120
-                scroll_amount = -event.delta # Ya tiene el signo correcto, solo invertimos para ir hacia abajo
+                scroll_amount = -event.delta 
             elif sys.platform == "win32":  # Windows
-                # En Windows, event.delta es un múltiplo de 120.
-                # Dividir por 120 lo normaliza a 1 o -1, luego multiplicamos por nuestro factor.
                 scroll_amount = int(-1 * (event.delta / 120) * scroll_speed_factor)
             else: # Linux (X11)
-                if event.num == 4: # Scroll hacia arriba
+                if event.num == 4: 
                     scroll_amount = -1 * scroll_speed_factor
-                elif event.num == 5: # Scroll hacia abajo
+                elif event.num == 5: 
                     scroll_amount = 1 * scroll_speed_factor
             
             if scroll_amount != 0:
                 self.canvas.yview_scroll(scroll_amount, "units")
-            return "break" # Evita que el evento se propague más allá de este manejador
+            return "break" 
 
     def _display_contacts_in_grid(self, contactos_a_mostrar):
         """
-        Limpia el frame de contactos y los muestra en una cuadrícula, incluyendo la imagen o inicial.
+        Limpia el frame de contactos y los muestra en una cuadrícula, incluyendo la imagen, inicial y código QR.
+        Las imágenes y QR se cargarán de forma asíncrona.
         """
         for widget in self.scrollable_content_frame.winfo_children():
             widget.destroy()
@@ -270,13 +283,18 @@ class Interfaz:
         if not contactos_a_mostrar:
             no_contacts_label = ttk.Label(self.scrollable_content_frame, text="No se encontraron contactos que coincidan.",
                                             font=self.font_main, foreground=self.text_light, background=self.bg_main)
-            no_contacts_label.grid(row=0, column=0, columnspan=2, pady=40, sticky="nsew") 
+            no_contacts_label.grid(row=0, column=0, columnspan=3, pady=40, sticky="nsew") 
             self.scrollable_content_frame.grid_rowconfigure(0, weight=1) 
             self._bind_scroll_events_to_widget(no_contacts_label)
             return
 
-        num_cols = 2
+        num_cols = 2 
 
+        # Crear una lista para mantener los objetos PhotoImage de los QR mientras se generan
+        # Esto es crucial para que Tkinter no los recoja como basura antes de que se muestren
+        # self._current_qr_images = [] # Ya no es necesario si usamos self.contact_images
+
+        # Crear todos los widgets de la tarjeta con placeholders/iniciales
         for index, contacto in enumerate(contactos_a_mostrar):
             frame_card = ttk.Frame(self.scrollable_content_frame, style='ContactCard.TFrame', padding=15, relief="solid", borderwidth=1)
             
@@ -284,15 +302,25 @@ class Interfaz:
             col = index % num_cols
             frame_card.grid(row=row, column=col, padx=15, pady=15, sticky="nsew") 
             
+            frame_card.grid_columnconfigure(0, weight=0) 
+            frame_card.grid_columnconfigure(1, weight=1) 
+            frame_card.grid_columnconfigure(2, weight=0) 
+
+            # 1. Área de la foto/inicial
             photo_frame = ttk.Frame(frame_card, style='PhotoFrame.TFrame', width=70, height=70)
             photo_frame.grid(row=0, column=0, rowspan=2, padx=(0, 10), pady=(0, 5), sticky="n") 
             photo_frame.pack_propagate(False) 
 
-            img_to_display = self._get_contact_image(contacto.get_foto_path(), contacto.get_nombre())
-            photo_label = ttk.Label(photo_frame, image=img_to_display, background=self.bg_card)
-            photo_label.image = img_to_display 
+            # Mostrar una imagen placeholder/inicial mientras se carga la real
+            initial_img = self._generate_initial_image(contacto.get_nombre(), (70, 70))
+            photo_label = ttk.Label(photo_frame, image=initial_img, background=self.bg_card)
+            photo_label.image = initial_img 
             photo_label.pack(expand=True)
+            # Almacenar la referencia al label para actualizarlo después
+            self.contact_images[(contacto.id_contacto, 'photo')] = photo_label 
 
+
+            # 2. Información del contacto
             info_frame = ttk.Frame(frame_card, style='ContactCard.TFrame') 
             info_frame.grid(row=0, column=1, padx=(0, 5), pady=(0,2), sticky="ew") 
 
@@ -300,14 +328,29 @@ class Interfaz:
             ttk.Label(info_frame, text=f"📞 {contacto.telefono}", foreground=self.text_light, background=self.bg_card, font=self.font_main).pack(anchor="w", fill="x", expand=True)
             ttk.Label(info_frame, text=f"📧 {contacto.email}", foreground=self.text_light, background=self.bg_card, font=self.font_main).pack(anchor="w", fill="x", expand=True)
             
+            # 3. Código QR (placeholder inicial)
+            qr_frame = ttk.Frame(frame_card, style='QRFrame.TFrame', width=70, height=70) 
+            qr_frame.grid(row=0, column=2, rowspan=2, padx=(5, 0), pady=(0, 5), sticky="n")
+            qr_frame.pack_propagate(False)
+
+            # Usar una imagen inicial para el QR mientras se genera
+            initial_qr_img = self._generate_initial_image("QR", (70,70), bg_color="lightgray") # Placeholder para QR
+            qr_label = ttk.Label(qr_frame, image=initial_qr_img, background=self.bg_card)
+            qr_label.image = initial_qr_img 
+            qr_label.pack(expand=True)
+            # Almacenar la referencia al label para actualizarlo después
+            self.contact_images[(contacto.id_contacto, 'qr')] = qr_label 
+            
+            self._bind_scroll_events_to_widget(qr_frame)
+
+
+            # 4. Botones
             btn_frame_card = ttk.Frame(frame_card, style='ContactCardButtonsFrame.TFrame') 
-            btn_frame_card.grid(row=1, column=1, columnspan=1, pady=(10, 0), sticky="w") 
+            btn_frame_card.grid(row=1, column=1, columnspan=2, pady=(10, 0), sticky="w") 
 
             ttk.Button(btn_frame_card, text="✏️ Editar", style='TButton', command=lambda c=contacto: self.mostrar_formulario_editar(c)).pack(side="left", padx=5)
             ttk.Button(btn_frame_card, text="🗑️ Eliminar", style='Danger.TButton', command=lambda c=contacto: self._show_delete_confirmation(c)).pack(side="left")
             
-            frame_card.grid_columnconfigure(1, weight=1) 
-
             # Vincular eventos de scroll a cada elemento dentro de la tarjeta
             self._bind_scroll_events_to_widget(frame_card)
             self._bind_scroll_events_to_widget(photo_frame)
@@ -319,10 +362,55 @@ class Interfaz:
             for child in btn_frame_card.winfo_children():
                 self._bind_scroll_events_to_widget(child)
 
+        # Iniciar la carga de imágenes y QR en un hilo separado
+        threading.Thread(target=self._load_contact_images_async, args=(contactos_a_mostrar,)).start()
 
         self.scrollable_content_frame.update_idletasks()
         if self.canvas and self.contact_list_frame.winfo_children():
             self.canvas.config(scrollregion=self.canvas.bbox("all"))
+
+    def _load_contact_images_async(self, contactos):
+        """
+        Carga las imágenes de los contactos y genera los QR en un hilo separado
+        y coloca los resultados en la cola.
+        """
+        for contacto in contactos:
+            # Cargar imagen de la foto
+            photo_img = self._get_contact_image(contacto.get_foto_path(), contacto.get_nombre())
+            if photo_img:
+                self.image_queue.put((contacto.id_contacto, 'photo', photo_img))
+
+            # Generar imagen del QR
+            qr_img = self._generate_contact_qr(contacto)
+            if qr_img:
+                self.image_queue.put((contacto.id_contacto, 'qr', qr_img))
+
+    def _process_image_queue(self):
+        """
+        Procesa los resultados de la cola de imágenes en el hilo principal de Tkinter.
+        """
+        try:
+            while True:
+                contact_id, img_type, photo_image = self.image_queue.get_nowait()
+                # Verificar si el label aún existe en la UI
+                if (contact_id, img_type) in self.contact_images:
+                    label = self.contact_images[(contact_id, img_type)]
+                    if label.winfo_exists(): # Asegurarse de que el widget aún esté presente
+                        label.config(image=photo_image)
+                        label.image = photo_image # Mantener la referencia
+                        # Si es la foto, ajustar el fondo si viene de un placeholder
+                        if img_type == 'photo' and photo_image != self._generate_initial_image(contact_id, (70,70)):
+                             label.config(background=self.bg_card)
+                        # Si es el QR, asegurar el fondo correcto
+                        elif img_type == 'qr' and photo_image != self._generate_initial_image("QR", (70,70), bg_color="lightgray"):
+                             label.config(background=self.bg_card)
+
+        except queue.Empty:
+            pass # La cola está vacía, no hay más imágenes que procesar por ahora
+        finally:
+            # Vuelve a programar esta función para que se ejecute en el futuro
+            self.root.after(100, self._process_image_queue)
+
 
     def _bind_scroll_events_to_widget(self, widget):
         """
@@ -333,6 +421,33 @@ class Interfaz:
         widget.bind("<MouseWheel>", self._on_mousewheel_event)
         widget.bind("<Button-4>", self._on_mousewheel_event)
         widget.bind("<Button-5>", self._on_mousewheel_event)
+
+    def _generate_contact_qr(self, contacto):
+        """
+        Genera un código QR para el contacto utilizando el formato VCard.
+        Retorna un objeto PhotoImage de Tkinter.
+        """
+        vcard_data = f"BEGIN:VCARD\nVERSION:3.0\nN:{contacto.nombre}\nFN:{contacto.nombre}\nTEL:{contacto.telefono}\nEMAIL:{contacto.email}\nEND:VCARD"
+        
+        try:
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_L,
+                box_size=10, 
+                border=2,    
+            )
+            qr.add_data(vcard_data)
+            qr.make(fit=True)
+
+            img = qr.make_image(fill_color="black", back_color="white").convert('RGB')
+            
+            qr_size = (70, 70) 
+            img = img.resize(qr_size, Image.Resampling.LANCZOS)
+            
+            return ImageTk.PhotoImage(img)
+        except Exception as e:
+            print(f"Error al generar QR para {contacto.nombre}: {e}")
+            return None
 
 
     def _get_contact_image(self, photo_path, contact_name):
@@ -351,10 +466,12 @@ class Interfaz:
         
         return self._generate_initial_image(contact_name, image_size)
 
-    def _generate_initial_image(self, name, size):
+    # Modificado para aceptar color de fondo para el placeholder
+    def _generate_initial_image(self, name, size, bg_color=None):
         """Genera una imagen con la inicial del nombre del contacto."""
         initial = name[0].upper() if name else "?"
-        img = Image.new('RGB', size, color = self.placeholder_bg) 
+        color = bg_color if bg_color else self.placeholder_bg # Usar color_dado o el predeterminado
+        img = Image.new('RGB', size, color = color) 
         d = ImageDraw.Draw(img)
         
         try:
@@ -394,10 +511,7 @@ class Interfaz:
         if search_query == "Buscar por nombre...":
             search_query = "" 
 
-        if not search_query:
-            contactos_filtrados = self.agenda.obtener_contactos()
-        else:
-            contactos_filtrados = self.agenda.buscar_contactos_por_cadena(search_query)
+        contactos_filtrados = self.agenda.buscar_contactos_por_cadena(search_query)
         
         self._display_contacts_in_grid(contactos_filtrados)
 
