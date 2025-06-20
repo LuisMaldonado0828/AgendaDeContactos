@@ -1,6 +1,4 @@
 # gui/interfaz.py
-# --- CÓDIGO COMPLETO Y CORREGIDO ---
-
 import tkinter as tk
 from tkinter import ttk, messagebox, font, filedialog
 from PIL import Image, ImageTk, ImageDraw, ImageFont
@@ -631,6 +629,14 @@ class Interfaz:
         if not telefono.strip():
             self.error_label_form.config(text="⚠️ Error: El teléfono no puede estar vacío.")
             return False
+        
+        # --- INICIO DE LA NUEVA VALIDACIÓN ---
+        # Validación para no permitir números negativos
+        if telefono.strip().startswith('-'):
+            self.error_label_form.config(text="⚠️ Error: El número de teléfono no puede ser negativo.")
+            return False
+        # --- FIN DE LA NUEVA VALIDACIÓN ---
+
         telefono_limpio = telefono.strip().replace(" ", "").replace("-", "")
         if not telefono_limpio.isdigit():
             self.error_label_form.config(text="⚠️ Error: El teléfono solo debe contener números (opcionalmente con espacios o guiones).")
@@ -644,13 +650,11 @@ class Interfaz:
             self.error_label_form.config(text="⚠️ Error: Formato de email inválido (ej. usuario@dominio.com).")
             return False
 
-        # --- INICIO DE LA CORRECCIÓN ---
         # Validación de nombre duplicado
         duplicado_nombre = self.agenda.buscar_contacto(nombre=nombre.strip(), contacto_a_excluir=contacto_a_excluir)
         if duplicado_nombre:
             self.error_label_form.config(text="⚠️ Error: Ya existe un contacto con ese nombre.")
             return False
-        # --- FIN DE LA CORRECCIÓN ---
 
         duplicado_tel = self.agenda.buscar_contacto(telefono=telefono.strip(), contacto_a_excluir=contacto_a_excluir)
         if duplicado_tel:
